@@ -78,7 +78,7 @@ export interface Task {
 }
 
 /** 予定表の 1 コマ */
-export type BlockKind = 'task' | 'study' | 'break' | 'buffer' | 'fixed'
+export type BlockKind = 'task' | 'study' | 'workout' | 'break' | 'buffer' | 'fixed'
 
 export interface PlanBlock {
   id: string
@@ -146,6 +146,9 @@ export interface DailyReview {
   actualMin: number
   /** そのうち学習にあてた分 */
   studyMin: number
+  /** 筋トレの実績 (分)。正本は筋トレログなので、こちらは読んだ値を写すだけ */
+  workoutMin: number
+  workoutDone: boolean
   /** ルールで導いた所見。「見積もりが甘い」「開始が遅かった」など */
   findings: string[]
   note?: string
@@ -179,6 +182,10 @@ export interface Settings {
   studyChunkMin: number
   /** 1 日に予定へ載せる学習項目の上限。多すぎると今日の話でなくなる */
   studyPerDayMax: number
+  /** 筋トレログから今日のトレーニングを読むか */
+  useKintore: boolean
+  /** 前日の負荷が高い日は、詰め込みの上限を自動で下げるか */
+  easeAfterWorkout: boolean
   updatedAt: string
 }
 
@@ -194,6 +201,8 @@ export const DEFAULT_SETTINGS: Settings = {
   travelAllowanceMin: 60,
   studyChunkMin: 30,
   studyPerDayMax: 4,
+  useKintore: true,
+  easeAfterWorkout: true,
   updatedAt: '',
 }
 

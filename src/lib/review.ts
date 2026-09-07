@@ -142,6 +142,11 @@ export interface ReviewInput {
   nodes: StudyNode[]
   /** その日の学習記録 */
   sessions: StudySession[]
+  /**
+   * その日の筋トレ。正本は筋トレログなので、読んだ値を写すだけ。
+   * 連携が使えない日は渡さない。
+   */
+  workout?: { minutes: number; done: boolean }
 }
 
 /** 見積もりと実績のズレが「大きい」とみなす比 */
@@ -149,7 +154,7 @@ const OVERRUN = 1.2
 const UNDERRUN = 0.6
 
 export function buildReview(input: ReviewInput): DailyReview {
-  const { date, plan, tasks, logs, nodes, sessions } = input
+  const { date, plan, tasks, logs, nodes, sessions, workout } = input
   const byId = new Map(tasks.map((t) => [t.id, t]))
   const nodeById = new Map(nodes.map((n) => [n.id, n]))
   const plannedIds = plan ? plannedTaskIds(plan) : []
@@ -183,8 +188,11 @@ export function buildReview(input: ReviewInput): DailyReview {
     doneNodeIds,
     undoneNodeIds,
     plannedMin,
-    actualMin: taskMin + studyMin,
+    // 筋トレの時間も「今日動かした時間」に含める
+    actualMin: taskMin + studyMin + (workout?.done ? workout.minutes : 0),
     studyMin,
+    workoutMin: workout?.done ? workout.minutes : 0,
+    workoutDone: workout?.done ?? false,
     findings: analyze({
       plannedIds,
       plannedNodes,
@@ -194,8 +202,9 @@ export function buildReview(input: ReviewInput): DailyReview {
       doneNodeIds,
       undoneNodeIds,
       plannedMin,
-      actualMin: taskMin + studyMin,
+      actualMin: taskMin + studyMin + (workout?.done ? workout.minutes : 0),
       studyMin,
+      workout,
       logs,
       sessions,
       byId,
@@ -217,6 +226,7 @@ interface AnalyzeInput {
   plannedMin: number
   actualMin: number
   studyMin: number
+  workout?: { minutes: number; done: boolean }
   logs: TaskLog[]
   sessions: StudySession[]
   byId: Map<string, Task>
@@ -306,6 +316,14 @@ function analyze(a: AnalyzeInput): string[] {
     const pct = Math.round(((s.correct ?? 0) / (s.attempted as number)) * 100)
     out.push(
       `「${a.nodeById.get(s.nodeId)?.title ?? '項目'}」の正答率は${pct}%でした。要復習にしておくと、近いうちにまた出ます。`,
+    )
+  }
+
+  if (a.workout) {
+    out.push(
+      a.workout.done
+        ? `筋トレは${formatDuration(a.workout.minutes)}実施しました。`
+        : '今日は筋トレの記録がありません。',
     )
   }
 

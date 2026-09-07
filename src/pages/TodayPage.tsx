@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import TaskForm, { blankTask } from '../components/TaskForm'
 import { Banner, Empty, Sheet, Stat } from '../components/ui'
+import { loadKintoreDay, type KintoreDay } from '../lib/bridge/kintore'
 import { loadYoteichoDay, parseManualSlots, type YoteichoDay } from '../lib/bridge/yoteicho'
 import { formatDate, formatDuration, fromMinutes, nowMinutes, todayKey, toMinutes } from '../lib/date'
 import {
@@ -18,11 +19,18 @@ import {
   plannedNodeIds,
   plannedTaskIds,
   subtractBusy,
+  workBlocks,
   workMinutes,
   type FreeSlot,
 } from '../lib/scheduler'
 import { explainStudy } from '../lib/study'
-import { buildContextText, buildToday, currentBlock, topThreeToday } from '../lib/today'
+import {
+  buildContextText,
+  buildToday,
+  currentBlock,
+  topThreeToday,
+  type TodayContext,
+} from '../lib/today'
 import { useApp } from '../state/AppContext'
 import {
   AREA_LABELS,
@@ -37,6 +45,7 @@ export default function TodayPage() {
   const { data, upsert, replaceList } = useApp()
   const [now, setNow] = useState(() => nowMinutes())
   const [yoteicho, setYoteicho] = useState<YoteichoDay | null>(null)
+  const [kintore, setKintore] = useState<KintoreDay | null>(null)
   const [manual, setManual] = useState('')
   const [manualSlots, setManualSlots] = useState<FreeSlot[] | null>(null)
   const [editing, setEditing] = useState<Task | null>(null)
@@ -78,6 +87,20 @@ export default function TodayPage() {
     settings.travelAllowanceMin,
   ])
 
+  useEffect(() => {
+    if (!settings.useKintore) {
+      setKintore(null)
+      return
+    }
+    let alive = true
+    void loadKintoreDay().then((d) => {
+      if (alive) setKintore(d)
+    })
+    return () => {
+      alive = false
+    }
+  }, [date, settings.useKintore])
+
   const plan = data.plans.find((p) => p.date === date)
 
   // 毎回の描画で新しい配列を作らないよう固定する (作ると buildToday が毎回走る)
@@ -96,9 +119,23 @@ export default function TodayPage() {
         fixed: yoteicho?.items ?? [],
         slots,
         settings,
+        workout: kintore ?? undefined,
         plan,
       }),
-    [date, now, data.tasks, data.logs, data.nodes, data.exams, data.sessions, yoteicho, slots, settings, plan],
+    [
+      date,
+      now,
+      data.tasks,
+      data.logs,
+      data.nodes,
+      data.exams,
+      data.sessions,
+      yoteicho,
+      kintore,
+      slots,
+      settings,
+      plan,
+    ],
   )
 
   const three = topThreeToday(ctx)
@@ -117,7 +154,8 @@ export default function TodayPage() {
         doneBlocks.map((b) => ({ from: toMinutes(b.start), to: toMinutes(b.end) })),
       ),
       items: ctx.schedulable,
-      settings,
+      // 前日の負荷が高い日は上限が下がっている
+      settings: ctx.planSettings,
       today: date,
       now,
     })
@@ -127,7 +165,7 @@ export default function TodayPage() {
         (a, b) => toMinutes(a.start) - toMinutes(b.start),
       ),
     })
-  }, [ctx, settings, date, now, plan, upsert])
+  }, [ctx, date, now, plan, upsert])
 
   const finishBlock = (
     block: PlanBlock,
@@ -180,8 +218,11 @@ export default function TodayPage() {
     setManualSlots(parsed.length > 0 ? parsed : null)
   }
 
-  const workCount = plan?.blocks.filter((b) => b.kind === 'task' || b.kind === 'study') ?? []
-  const doneCount = workCount.filter((b) => b.doneAt).length
+  const workCount = plan ? workBlocks(plan) : []
+  // 筋トレの完了は筋トレログが正本なので、そちらの記録を見る
+  const isBlockDone = (b: PlanBlock) =>
+    b.kind === 'workout' ? Boolean(kintore?.doneToday) : Boolean(b.doneAt)
+  const doneCount = workCount.filter(isBlockDone).length
   // 直前の試験があれば、いちばん上で知らせる
   const urgentExam = ctx.examPlans.find((p) => p.reviewPhase)
 
@@ -192,9 +233,18 @@ export default function TodayPage() {
         <span className="dim">{fromMinutes(now)} 現在</span>
       </div>
 
+      {/* --- 一画面で今日をつかむ --- */}
+      <Dashboard
+        ctx={ctx}
+        kintore={kintore}
+        doneCount={doneCount}
+        totalCount={workCount.length}
+      />
+
       {/* --- 何をすべきか、を最初に --- */}
       <Banner>{explainTop(ctx.ranked)}</Banner>
       {ctx.study.length > 0 && <Banner>{explainStudy(ctx.study)}</Banner>}
+      {ctx.easedNote && <Banner alert>{ctx.easedNote}</Banner>}
 
       {urgentExam && (
         <Banner alert>
@@ -336,7 +386,7 @@ export default function TodayPage() {
               {plan.blocks.map((b) => (
                 <div
                   key={b.id}
-                  className={`blk k-${b.kind}${b.doneAt ? ' is-done' : ''}${
+                  className={`blk k-${b.kind}${isBlockDone(b) ? ' is-done' : ''}${
                     active?.id === b.id ? ' is-now' : ''
                   }`}
                 >
@@ -345,17 +395,35 @@ export default function TodayPage() {
                   </span>
                   <span>
                     <span className="blk-title">
-                      {b.kind === 'study' && <span className="tag">学習</span>} {b.title}
+                      {b.kind === 'study' && <span className="tag">学習</span>}
+                      {b.kind === 'workout' && <span className="tag">🏋️</span>} {b.title}
                     </span>
                     {b.reason && <div className="reason">{b.reason}</div>}
                     {b.doneAt && b.actualMin != null && (
                       <div className="dim">実績 {formatDuration(b.actualMin)}</div>
+                    )}
+                    {b.kind === 'workout' && kintore?.doneToday && (
+                      <div className="dim">
+                        実績 {formatDuration(kintore.todayMinutes ?? 0)}（筋トレログの記録）
+                      </div>
                     )}
                   </span>
                   {(b.kind === 'task' || b.kind === 'study') && !b.doneAt && (
                     <button type="button" className="btn sm" onClick={() => setFinishing(b)}>
                       完了
                     </button>
+                  )}
+                  {/* 筋トレの記録は筋トレログでつける。ここで二重に入力させない */}
+                  {b.kind === 'workout' && !kintore?.doneToday && (
+                    <a
+                      className="btn sm"
+                      href="../kintore-app/"
+                      target="_blank"
+                      rel="noopener"
+                      style={{ textDecoration: 'none' }}
+                    >
+                      開く
+                    </a>
                   )}
                 </div>
               ))}
@@ -384,6 +452,59 @@ export default function TodayPage() {
               {s.reasons.length > 0 && <span className="reason">{s.reasons.join('・')}</span>}
             </div>
           ))}
+        </section>
+      )}
+
+      {/* --- 筋トレ。内容は筋トレログの担当なので、こちらは状況だけ --- */}
+      {kintore && (
+        <section className="bucket">
+          <h2 className="section">筋トレ</h2>
+          {!kintore.available ? (
+            <Banner alert>{kintore.reason}</Banner>
+          ) : (
+            <div className={`task ${kintore.doneToday ? 'is-done b-routine' : 'b-optional'}`}>
+              <span className="task-title">
+                {kintore.doneToday
+                  ? `実施済み ${formatDuration(kintore.todayMinutes ?? 0)}`
+                  : kintore.plannedToday
+                    ? `今日やる（見込み ${formatDuration(kintore.estimateMin)}）`
+                    : '今日は休み'}
+              </span>
+              <span className="task-meta">
+                {/* 筋トレログの1日の区切りは司令塔と違うことがある。どの日の話かを隠さない */}
+                {kintore.forDate !== date && (
+                  <span className="tag">{kintore.forDate} ぶん</span>
+                )}
+                <span>
+                  直近7日 {kintore.last7Count}回 / 週{kintore.daysPerWeek}回
+                </span>
+                {kintore.streakDays > 0 && <span>連続{kintore.streakDays}日</span>}
+                {kintore.lastWorkoutOn && <span>最終 {kintore.lastWorkoutOn}</span>}
+                {kintore.yesterdayMinutes != null && (
+                  <span>昨日 {formatDuration(kintore.yesterdayMinutes)}</span>
+                )}
+              </span>
+              <span className="reason">{kintore.planReason}</span>
+              {kintore.forDate !== date && (
+                <span className="hint">
+                  筋トレログは1日の区切りをずらす設定になっているため、いまは {kintore.forDate} を
+                  「今日」として数えています。深夜のトレーニングを前日ぶんとして扱う設定です。
+                </span>
+              )}
+              <span className="hint">
+                メニューと記録は筋トレログの担当です。司令塔は時間を空けるところまでしかしません。
+              </span>
+              <a
+                className="btn sm"
+                href="../kintore-app/"
+                target="_blank"
+                rel="noopener"
+                style={{ textDecoration: 'none', textAlign: 'center' }}
+              >
+                筋トレログを開く
+              </a>
+            </div>
+          )}
         </section>
       )}
 
@@ -627,5 +748,99 @@ function FinishSheet({
         </div>
       )}
     </Sheet>
+  )
+}
+
+/**
+ * 一画面で今日をつかむためのまとめ。
+ * 下に並ぶ各節の要約なので、ここでは数字と一言だけにして詳細は各節に任せる。
+ */
+function Dashboard({
+  ctx,
+  kintore,
+  doneCount,
+  totalCount,
+}: {
+  ctx: TodayContext
+  kintore: KintoreDay | null
+  doneCount: number
+  totalCount: number
+}) {
+  const nextFixed = ctx.fixed.find((f) => f.endMin > ctx.now)
+  const nearestExam = ctx.examPlans[0]
+  const buckets = ctx.buckets
+
+  const rows: Array<{ icon: string; label: string; value: string }> = [
+    {
+      icon: '📅',
+      label: '予定',
+      value:
+        ctx.fixed.length === 0
+          ? '動かせない予定なし'
+          : nextFixed
+            ? `次は ${nextFixed.start} ${nextFixed.title}`
+            : `${ctx.fixed.length}件（すべて終了）`,
+    },
+    {
+      icon: '🎯',
+      label: 'タスク',
+      value:
+        ctx.ranked.length === 0
+          ? 'なし'
+          : [
+              buckets.overdue.length > 0 ? `期限切れ${buckets.overdue.length}` : null,
+              buckets.urgent.length > 0 ? `最優先${buckets.urgent.length}` : null,
+              buckets.important.length > 0 ? `重要${buckets.important.length}` : null,
+              buckets.routine.length > 0 ? `継続${buckets.routine.length}` : null,
+            ]
+              .filter(Boolean)
+              .join(' / ') || `${ctx.ranked.length}件`,
+    },
+    {
+      icon: '📚',
+      label: '学習',
+      value: nearestExam
+        ? `${nearestExam.exam.title} まで${nearestExam.daysLeft}日` +
+          (nearestExam.requiredMin > 0 ? `・1日${formatDuration(nearestExam.perDayMin)}` : '')
+        : ctx.study.length > 0
+          ? `候補${ctx.study.length}件（試験の登録なし）`
+          : '登録なし',
+    },
+    {
+      icon: '🏋️',
+      label: '筋トレ',
+      value: !kintore?.available
+        ? '連携なし'
+        : kintore.doneToday
+          ? `実施済み ${formatDuration(kintore.todayMinutes ?? 0)}` +
+            (kintore.forDate !== ctx.date ? `（${kintore.forDate} ぶん）` : '')
+          : kintore.plannedToday
+            ? `今日やる（見込み ${formatDuration(kintore.estimateMin)}）`
+            : '今日は休み',
+    },
+    {
+      icon: '📊',
+      label: '進捗',
+      value:
+        totalCount > 0
+          ? `${doneCount}/${totalCount} 完了・空き ${formatDuration(ctx.availableMin)}`
+          : `空き ${formatDuration(ctx.availableMin)}`,
+    },
+  ]
+
+  return (
+    <div className="card dashboard">
+      <div className="bucket-head">TODAY</div>
+      <dl>
+        {rows.map((r) => (
+          <div key={r.label} className="dash-row">
+            <dt>
+              <span aria-hidden>{r.icon}</span> {r.label}
+            </dt>
+            <dd>{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   )
 }

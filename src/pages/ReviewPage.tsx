@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Banner, Empty, Stat } from '../components/ui'
 import { addDays, formatDate, formatDuration, todayKey } from '../lib/date'
 import { buildReview, carryOver } from '../lib/review'
+import { loadKintoreDay, type KintoreDay } from '../lib/bridge/kintore'
 import { areaOf } from '../lib/study'
 import { useApp } from '../state/AppContext'
 import { AREA_LABELS } from '../types'
@@ -17,12 +18,37 @@ export default function ReviewPage() {
     () => data.sessions.filter((s) => s.date === date),
     [data.sessions, date],
   )
+  const [kintore, setKintore] = useState<KintoreDay | null>(null)
+
+  // 筋トレの実績は筋トレログが正本。今日ぶんだけ読んで写す
+  useEffect(() => {
+    if (!data.settings.useKintore || date !== todayKey()) {
+      setKintore(null)
+      return
+    }
+    let alive = true
+    void loadKintoreDay().then((d) => {
+      if (alive) setKintore(d)
+    })
+    return () => {
+      alive = false
+    }
+  }, [date, data.settings.useKintore])
+
+  const workout = useMemo(
+    () =>
+      kintore?.available
+        ? { minutes: kintore.todayMinutes ?? 0, done: kintore.doneToday }
+        : undefined,
+    [kintore],
+  )
+
   const saved = data.reviews.find((r) => r.date === date)
 
   // 保存済みがあればそれを、無ければその場で組み立てて見せる
   const review = useMemo(
-    () => saved ?? buildReview({ date, plan, tasks: data.tasks, logs, nodes: data.nodes, sessions }),
-    [saved, date, plan, data.tasks, logs, data.nodes, sessions],
+    () => saved ?? buildReview({ date, plan, tasks: data.tasks, logs, nodes: data.nodes, sessions, workout }),
+    [saved, date, plan, data.tasks, logs, data.nodes, sessions, workout],
   )
 
   const titleOf = (id: string) => data.tasks.find((t) => t.id === id)?.title ?? '（削除済み）'
@@ -40,7 +66,7 @@ export default function ReviewPage() {
   }, [logs, sessions, data.nodes])
 
   const save = () => {
-    upsert('reviews', buildReview({ date, plan, tasks: data.tasks, logs, nodes: data.nodes, sessions }))
+    upsert('reviews', buildReview({ date, plan, tasks: data.tasks, logs, nodes: data.nodes, sessions, workout }))
     setMessage('レビューを保存しました')
   }
 

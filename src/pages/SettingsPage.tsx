@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Banner, Field } from '../components/ui'
+import { loadKintoreDay } from '../lib/bridge/kintore'
 import { loadYoteichoDay } from '../lib/bridge/yoteicho'
 import { todayKey } from '../lib/date'
 import { backupFilename, buildBackup, parseBackup } from '../lib/storage'
@@ -10,6 +11,26 @@ export default function SettingsPage() {
   const s = data.settings
   const [message, setMessage] = useState('')
   const [link, setLink] = useState<string | null>(null)
+  const [kintoreLink, setKintoreLink] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!s.useKintore) {
+      setKintoreLink('連携を切ってあります')
+      return
+    }
+    let alive = true
+    void loadKintoreDay().then((d) => {
+      if (!alive) return
+      setKintoreLink(
+        d.available
+          ? `つながっています（直近7日 ${d.last7Count}回、週${d.daysPerWeek}回の目標）`
+          : (d.reason ?? '読めませんでした'),
+      )
+    })
+    return () => {
+      alive = false
+    }
+  }, [s.useKintore])
 
   useEffect(() => {
     if (!s.useYoteicho) {
@@ -185,6 +206,34 @@ export default function SettingsPage() {
         <p className="hint">
           読み取りだけで、よてい帳のデータには一切書き込みません。
           同じオリジン（banz-hub.github.io）で開いている必要があります。
+        </p>
+      </section>
+
+      <section className="bucket">
+        <h2 className="section">筋トレログとの連携</h2>
+        <label className="row tight">
+          <input
+            type="checkbox"
+            style={{ width: 'auto' }}
+            checked={s.useKintore}
+            onChange={(e) => setSettings({ useKintore: e.target.checked })}
+          />
+          <span>筋トレログから今日のトレーニングを読む</span>
+        </label>
+        {kintoreLink && <Banner alert={!kintoreLink.startsWith('つながって')}>{kintoreLink}</Banner>}
+        <label className="row tight">
+          <input
+            type="checkbox"
+            style={{ width: 'auto' }}
+            checked={s.easeAfterWorkout}
+            onChange={(e) => setSettings({ easeAfterWorkout: e.target.checked })}
+          />
+          <span>前日の負荷が高い日は、詰め込みの上限を自動で下げる</span>
+        </label>
+        <p className="hint">
+          読み取りだけで、筋トレログのデータには一切書き込みません。
+          メニューの中身（種目・セット・重量）は筋トレログの担当なので、司令塔は時間を空けるところまでです。
+          トレーニングの記録も筋トレログでつけてください。こちらで二重に入力する必要はありません。
         </p>
       </section>
 

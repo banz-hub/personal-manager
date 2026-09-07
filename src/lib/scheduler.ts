@@ -26,8 +26,8 @@ export interface FreeSlot {
 
 /** 予定表に置けるもの。タスクでも学習項目でも、ここまで揃えば置ける */
 export interface Schedulable {
-  kind: Extract<BlockKind, 'task' | 'study'>
-  /** タスクの id、または学習項目のノード id */
+  kind: Extract<BlockKind, 'task' | 'study' | 'workout'>
+  /** タスクの id、学習項目のノード id、筋トレなら固定の id */
   refId: string
   title: string
   /** 今日これに充てる分数 */
@@ -133,6 +133,7 @@ export function generatePlan(input: GenerateInput): DayPlan {
           to: cursor + next.todayMin,
           kind: next.kind,
           taskId: next.kind === 'task' ? next.refId : undefined,
+          // 筋トレの実績は筋トレログが持つので、こちらは id を紐づけない
           nodeId: next.kind === 'study' ? next.refId : undefined,
           title: next.title,
           reason: next.reason,
@@ -226,7 +227,7 @@ export function subtractBusy(
 /** 予定表のうち、実際に作業に充てた分数 (タスクと学習の合計) */
 export function workMinutes(plan: DayPlan): number {
   return plan.blocks
-    .filter((b) => b.kind === 'task' || b.kind === 'study')
+    .filter((b) => b.kind === 'task' || b.kind === 'study' || b.kind === 'workout')
     .reduce((sum, b) => sum + (toMinutes(b.end) - toMinutes(b.start)), 0)
 }
 
@@ -242,5 +243,7 @@ export function plannedNodeIds(plan: DayPlan): string[] {
 
 /** 予定表に入っている作業のコマ (休憩と予備を除く) */
 export function workBlocks(plan: DayPlan): PlanBlock[] {
-  return plan.blocks.filter((b) => b.kind === 'task' || b.kind === 'study')
+  return plan.blocks.filter(
+    (b) => b.kind === 'task' || b.kind === 'study' || b.kind === 'workout',
+  )
 }

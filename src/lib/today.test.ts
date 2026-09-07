@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import type { Exam, Mastery, Settings, StudyNode, StudySession, Task } from '../types'
 import { DEFAULT_SETTINGS } from '../types'
+import type { KintoreDay } from './bridge/kintore'
 import { toMinutes } from './date'
 import { generatePlan, workMinutes, type FreeSlot } from './scheduler'
-import { buildContextText, buildToday, topThreeToday, type BuildInput } from './today'
+import {
+  buildContextText,
+  buildToday,
+  easedSettings,
+  topThreeToday,
+  type BuildInput,
+} from './today'
 
 const TODAY = '2026-09-07'
 const NOW = toMinutes('18:00')
@@ -253,5 +260,148 @@ describe('今日の最重要3項目', () => {
       ),
     })
     expect(topThreeToday(c)).toHaveLength(3)
+  })
+})
+
+describe('筋トレの取り込み', () => {
+  function kintore(patch: Partial<KintoreDay> = {}): KintoreDay {
+    return {
+      available: true,
+      forDate: TODAY,
+      doneToday: false,
+      plannedToday: true,
+      planReason: '直近7日で2回。週5回に届いていないので、今日に置きます',
+      estimateMin: 50,
+      restDays: 1,
+      streakDays: 1,
+      restRecommended: false,
+      last7Count: 2,
+      daysPerWeek: 5,
+      ...patch,
+    }
+  }
+
+  it('やる日なら予定に入る候補になる', () => {
+    const c = ctx({ workout: kintore() })
+    const w = c.schedulable.find((s) => s.kind === 'workout')
+    expect(w).toBeDefined()
+    expect(w!.todayMin).toBe(50)
+    expect(w!.reason).toContain('週5回に届いていない')
+  })
+
+  it('もう終えていれば候補にしない', () => {
+    const c = ctx({ workout: kintore({ doneToday: true, plannedToday: false }) })
+    expect(c.schedulable.some((s) => s.kind === 'workout')).toBe(false)
+  })
+
+  it('休養日なら候補にしない', () => {
+    const c = ctx({ workout: kintore({ plannedToday: false, restRecommended: true, streakDays: 3 }) })
+    expect(c.schedulable.some((s) => s.kind === 'workout')).toBe(false)
+  })
+
+  it('連携が使えなければ候補にしない', () => {
+    const c = ctx({ workout: kintore({ available: false }) })
+    expect(c.schedulable.some((s) => s.kind === 'workout')).toBe(false)
+  })
+
+  it('締切のあるタスクに割り込まない', () => {
+    const c = ctx({
+      tasks: [task({ id: 't', title: '今日締切', dueDate: TODAY, importance: 3 })],
+      workout: kintore(),
+    })
+    expect(c.schedulable[0].kind).toBe('task')
+  })
+
+  it('週の目標から遅れているほど順位が上がる', () => {
+    const behind = ctx({ workout: kintore({ last7Count: 0 }) }).schedulable.findIndex(
+      (s) => s.kind === 'workout',
+    )
+    const onTrack = ctx({
+      tasks: [task({ id: 'a', title: 'A', dueDate: '2026-09-12' })],
+      workout: kintore({ last7Count: 4 }),
+    }).schedulable.findIndex((s) => s.kind === 'workout')
+    // 遅れているほうが先頭に来る
+    expect(behind).toBe(0)
+    expect(onTrack).toBeGreaterThan(0)
+  })
+
+  it('予定表に筋トレのコマが載り、id は紐づけない', () => {
+    const c = ctx({ workout: kintore() })
+    const plan = generatePlan({
+      slots: c.slots,
+      items: c.schedulable,
+      settings: c.planSettings,
+      today: TODAY,
+      now: NOW,
+    })
+    const b = plan.blocks.find((x) => x.kind === 'workout')!
+    expect(b.title).toBe('筋トレ')
+    expect(b.taskId).toBeUndefined()
+    expect(b.nodeId).toBeUndefined()
+    expect(b.reason).toBeTruthy()
+  })
+
+  it('今日の状況のテキストに筋トレが入る', () => {
+    const text = buildContextText(ctx({ workout: kintore({ doneToday: true, todayMinutes: 55, plannedToday: false }) }))
+    expect(text).toContain('## 筋トレ')
+    expect(text).toContain('実施済み')
+  })
+})
+
+describe('前日の負荷で詰め込みを緩める', () => {
+  const base = DEFAULT_SETTINGS
+
+  function kintore(patch: Partial<KintoreDay>): KintoreDay {
+    return {
+      available: true,
+      forDate: TODAY,
+      doneToday: false,
+      plannedToday: false,
+      planReason: '',
+      estimateMin: 50,
+      restDays: 1,
+      streakDays: 1,
+      restRecommended: false,
+      last7Count: 2,
+      daysPerWeek: 5,
+      ...patch,
+    }
+  }
+
+  it('3日続けていたら上限を下げ、理由を返す', () => {
+    const r = easedSettings(base, kintore({ restRecommended: true, streakDays: 3 }))
+    expect(r.settings.fillRatio).toBeCloseTo(0.7)
+    expect(r.note).toContain('3日続けて')
+    expect(r.note).toContain('80%から70%')
+  })
+
+  it('昨日たくさんやっていたら下げる', () => {
+    const r = easedSettings(base, kintore({ yesterdayMinutes: 75 }))
+    expect(r.settings.fillRatio).toBeCloseTo(0.7)
+    expect(r.note).toContain('昨日1時間15分')
+  })
+
+  it('負荷が軽ければ下げない', () => {
+    const r = easedSettings(base, kintore({ yesterdayMinutes: 30 }))
+    expect(r.settings.fillRatio).toBe(base.fillRatio)
+    expect(r.note).toBeUndefined()
+  })
+
+  it('設定を切っていれば下げない', () => {
+    const r = easedSettings(
+      { ...base, easeAfterWorkout: false },
+      kintore({ restRecommended: true, streakDays: 4 }),
+    )
+    expect(r.settings.fillRatio).toBe(base.fillRatio)
+  })
+
+  it('連携が無ければ下げない', () => {
+    expect(easedSettings(base, undefined).settings.fillRatio).toBe(base.fillRatio)
+  })
+
+  it('下限の50%より下げない', () => {
+    const r = easedSettings({ ...base, fillRatio: 0.5 }, kintore({ restRecommended: true }))
+    expect(r.settings.fillRatio).toBe(0.5)
+    expect(r.note).toBeUndefined()
   })
 })

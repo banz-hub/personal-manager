@@ -5,6 +5,7 @@
 
 import type { DayPlan, Exam, Settings, StudyNode, StudySession, Task, TaskLog } from '../types'
 import { AREA_LABELS, MASTERY_LABELS } from '../types'
+import type { KintoreDay } from './bridge/kintore'
 import type { FixedItem } from './bridge/yoteicho'
 import { formatDate, formatDuration, fromMinutes, toMinutes } from './date'
 import type { Bucket, ScoredTask } from './priority'
@@ -28,6 +29,12 @@ export interface TodayContext {
   study: ScoredStudy[]
   /** 近い順の試験の逆算 */
   examPlans: ExamPlan[]
+  /** 筋トレログから読んだ今日の状況 */
+  workout?: KintoreDay
+  /** 疲労を見て詰め込みを緩めたときの説明 */
+  easedNote?: string
+  /** 実際に予定表を組むときに使う設定 (緩めたぶんが入っている) */
+  planSettings: Settings
   /** 予定表を組むときに渡すもの。タスクと学習を混ぜてある */
   schedulable: Schedulable[]
   plan?: DayPlan
@@ -44,6 +51,7 @@ export interface BuildInput {
   fixed: FixedItem[]
   slots: FreeSlot[]
   settings: Settings
+  workout?: KintoreDay
   plan?: DayPlan
 }
 
@@ -72,6 +80,8 @@ export function buildToday(input: BuildInput): TodayContext {
     buildExamPlan(e, input.nodes, input.sessions, input.date),
   )
 
+  const eased = easedSettings(settings, input.workout)
+
   return {
     date: input.date,
     now: input.now,
@@ -82,8 +92,39 @@ export function buildToday(input: BuildInput): TodayContext {
     buckets: groupByBucket(ranked),
     study,
     examPlans,
-    schedulable: mergeForSchedule(ranked, study, settings),
+    workout: input.workout,
+    easedNote: eased.note,
+    planSettings: eased.settings,
+    schedulable: mergeForSchedule(ranked, study, input.workout, settings),
     plan: input.plan,
+  }
+}
+
+/**
+ * 前日の負荷が高い日は、詰め込みの上限を自動で下げる。
+ *
+ * 筋トレのあとに普段どおりの量を積むと、たいてい崩れる。
+ * ただし黙って下げると理由が分からないので、下げたことと理由を必ず返す。
+ */
+export function easedSettings(
+  settings: Settings,
+  workout?: KintoreDay,
+): { settings: Settings; note?: string } {
+  if (!settings.easeAfterWorkout || !workout?.available) return { settings }
+
+  const heavyYesterday = (workout.yesterdayMinutes ?? 0) >= 60
+  if (!workout.restRecommended && !heavyYesterday) return { settings }
+
+  const fillRatio = Math.max(0.5, settings.fillRatio - 0.1)
+  if (fillRatio === settings.fillRatio) return { settings }
+
+  const why = workout.restRecommended
+    ? `${workout.streakDays}日続けてトレーニングしている`
+    : `昨日${formatDuration(workout.yesterdayMinutes as number)}トレーニングした`
+
+  return {
+    settings: { ...settings, fillRatio },
+    note: `${why}ので、今日の詰め込みの上限を${Math.round(settings.fillRatio * 100)}%から${Math.round(fillRatio * 100)}%に下げました。`,
   }
 }
 
@@ -130,6 +171,7 @@ export function studyToSchedulable(s: ScoredStudy): Schedulable {
 export function mergeForSchedule(
   tasks: ScoredTask[],
   study: ScoredStudy[],
+  workout: KintoreDay | undefined,
   settings: Settings,
 ): Schedulable[] {
   const items = [
@@ -138,7 +180,43 @@ export function mergeForSchedule(
       .slice(0, settings.studyPerDayMax)
       .map((s) => ({ score: s.score, item: studyToSchedulable(s) })),
   ]
+
+  const w = workoutToSchedulable(workout)
+  if (w) items.push(w)
+
   return items.sort((a, b) => b.score - a.score).map((x) => x.item)
+}
+
+/** 予定表の中で筋トレを指す id。筋トレログ側の記録とは紐づけない */
+export const WORKOUT_REF_ID = 'workout'
+
+/**
+ * 筋トレを予定に入れる形にする。**メニューの中身は決めない。**
+ * 種目・セット・重量は筋トレログの担当なので、司令塔は時間を空けるところまで。
+ *
+ * 点数は、締切のある仕事に割り込まない程度に置き、
+ * 週の目標から遅れているほど上がるようにしてある。
+ */
+export function workoutToSchedulable(
+  workout: KintoreDay | undefined,
+): { score: number; item: Schedulable } | null {
+  if (!workout?.available || !workout.plannedToday) return null
+
+  const behind = Math.max(0, workout.daysPerWeek - workout.last7Count)
+  const score = Math.min(90, 40 + behind * 8)
+
+  return {
+    score,
+    item: {
+      kind: 'workout',
+      refId: WORKOUT_REF_ID,
+      title: '筋トレ',
+      todayMin: workout.estimateMin,
+      reason: workout.planReason,
+      critical: false,
+      counted: true,
+    },
+  }
 }
 
 /**
@@ -212,6 +290,26 @@ export function buildContextText(ctx: TodayContext): string {
           (s.reasons.length ? ` / 理由: ${s.reasons.join('、')}` : ''),
       )
     }
+  }
+
+  if (ctx.workout?.available) {
+    const w = ctx.workout
+    lines.push('')
+    lines.push('## 筋トレ (正本は筋トレログ)')
+    lines.push(
+      `- 今日: ${w.doneToday ? `実施済み (${formatDuration(w.todayMinutes ?? 0)})` : w.plannedToday ? `予定あり (見込み ${formatDuration(w.estimateMin)})` : '予定なし'} — ${w.planReason}`,
+    )
+    lines.push(
+      `- 直近7日 ${w.last7Count}回 / 週${w.daysPerWeek}回の目標 · 連続${w.streakDays}日` +
+        (w.lastWorkoutOn ? ` · 最終 ${w.lastWorkoutOn}` : '') +
+        (w.yesterdayMinutes != null ? ` · 昨日 ${formatDuration(w.yesterdayMinutes)}` : ''),
+    )
+    if (w.restRecommended) lines.push('- 休養を勧める状態')
+  }
+
+  if (ctx.easedNote) {
+    lines.push('')
+    lines.push(`## 今日の調整\n- ${ctx.easedNote}`)
   }
 
   if (ctx.plan) {
