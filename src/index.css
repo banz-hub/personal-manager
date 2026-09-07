@@ -896,3 +896,11 @@ table.compare td:first-child {
   cursor: pointer;
   padding: 2px 6px;
 }
+
+/* 予定の手直しで使う、細い時刻入力 */
+.blk-time-input {
+  width: 92px;
+  padding: 3px 6px;
+  font-size: 12px;
+  border-radius: 6px;
+}

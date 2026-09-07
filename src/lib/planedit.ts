@@ -124,3 +124,52 @@ export function unplaced(plan: DayPlan, items: Schedulable[]): Schedulable[] {
   )
   return items.filter((i) => !placed.has(i.refId))
 }
+
+/**
+ * 開始時刻を直接決める。
+ *
+ * ドラッグではなく時刻を選ばせるのは、iPhone で確実に動かせるようにするため。
+ * HTML5 のドラッグはタッチで動かず、自前で実装すると取りこぼしが出る。
+ * 時刻の入力なら片手でも正確に決められる。
+ */
+export function setBlockStart(plan: DayPlan, blockId: string, start: string): DayPlan {
+  const target = plan.blocks.find((b) => b.id === blockId)
+  if (!target || target.doneAt) return plan
+
+  const from = toMinutes(start)
+  const end = from + span(target)
+  if (Number.isNaN(from) || from < 0 || end > 24 * 60) return plan
+
+  const moved: PlanBlock = { ...target, start: fromMinutes(from), end: fromMinutes(end) }
+  const next = plan.blocks.map((b) => (b.id === blockId ? moved : b))
+  if (hasOverlap(next)) return plan
+
+  return { ...plan, blocks: sorted(next) }
+}
+
+/**
+ * その時刻から置けるか。置けない理由も返す。
+ * 入力しながら「なぜ動かないのか」が分かるようにするため。
+ */
+export function whyCannotStart(
+  plan: DayPlan,
+  blockId: string,
+  start: string,
+): string | null {
+  const target = plan.blocks.find((b) => b.id === blockId)
+  if (!target) return null
+  if (target.doneAt) return '完了したコマは動かせません'
+
+  const from = toMinutes(start)
+  if (Number.isNaN(from)) return null
+  if (from + span(target) > 24 * 60) return '日をまたぐので置けません'
+
+  const moved = { ...target, start: fromMinutes(from), end: fromMinutes(from + span(target)) }
+  const clash = plan.blocks.find(
+    (b) =>
+      b.id !== blockId &&
+      toMinutes(moved.start) < toMinutes(b.end) &&
+      toMinutes(b.start) < toMinutes(moved.end),
+  )
+  return clash ? `「${clash.title}」と重なります` : null
+}

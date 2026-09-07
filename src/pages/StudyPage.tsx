@@ -12,6 +12,7 @@ import {
   staleLeaves,
   summarizeMastery,
   upcomingExams,
+  moveNode,
   withDescendants,
   type NodeProgress,
 } from '../lib/study'
@@ -205,7 +206,18 @@ export default function StudyPage() {
             initial={editingNode}
             nodes={nodes}
             onSave={(n) => {
-              upsert('nodes', n)
+              const before = nodes.find((x) => x.id === n.id)
+              if (before && before.parentId !== n.parentId) {
+                // 付け替えは並びの詰め直しと分野の扱いがあるので moveNode に任せる
+                const moved = moveNode(
+                  nodes.map((x) => (x.id === n.id ? { ...n, parentId: before.parentId } : x)),
+                  n.id,
+                  n.parentId,
+                )
+                replaceList('nodes', moved)
+              } else {
+                upsert('nodes', n)
+              }
               // 追加した親は開いた状態にしておく (足したものが見えないと不安なので)
               if (n.parentId) setOpen((prev) => new Set(prev).add(n.parentId as string))
               setEditingNode(null)

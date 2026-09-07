@@ -568,3 +568,53 @@ export function masteryLabel(m: Mastery | undefined): string {
 export function importanceOf(node: StudyNode): Importance {
   return node.importance
 }
+
+// ---------- 付け替え ----------
+
+/**
+ * その項目を、別の親の下へ動かせるか。
+ *
+ * **自分自身と、自分の配下には動かせない。**動かすと親子が輪になり、
+ * ツリーをたどる処理が終わらなくなる (withDescendants は輪でも止まるようにしてあるが、
+ * そもそも輪を作らせないほうがよい)。
+ */
+export function canMoveTo(nodes: StudyNode[], nodeId: string, newParentId?: string): boolean {
+  if (nodeId === newParentId) return false
+  if (!newParentId) return true
+  return !withDescendants(nodes, nodeId).some((n) => n.id === newParentId)
+}
+
+/**
+ * 親を付け替える。移動先の末尾に置き、元いた場所の並びは詰め直す。
+ * 動かせない組み合わせのときは、何もせずそのまま返す。
+ */
+export function moveNode(
+  nodes: StudyNode[],
+  nodeId: string,
+  newParentId: string | undefined,
+): StudyNode[] {
+  const node = nodes.find((n) => n.id === nodeId)
+  if (!node || !canMoveTo(nodes, nodeId, newParentId)) return nodes
+  if (node.parentId === newParentId) return nodes
+
+  const order = childrenOf(nodes, newParentId).length
+  const moved: StudyNode = {
+    ...node,
+    parentId: newParentId,
+    order,
+    // 科目 (いちばん上) に上げるなら分野が要る。下げるなら親から受け継ぐので落とす
+    area: newParentId ? undefined : (node.area ?? areaOf(nodes, nodeId)),
+  }
+
+  const next = nodes.map((n) => (n.id === nodeId ? moved : n))
+
+  // 元いた場所の並びを詰める。歯抜けのままだと並べ替えが安定しない
+  const oldSiblings = childrenOf(next, node.parentId).filter((n) => n.id !== nodeId)
+  const reindex = new Map(oldSiblings.map((n, i) => [n.id, i]))
+  return next.map((n) => (reindex.has(n.id) ? { ...n, order: reindex.get(n.id) as number } : n))
+}
+
+/** 付け替え先として選べるもの。自分と自分の配下は外す */
+export function moveTargets(nodes: StudyNode[], nodeId: string): StudyNode[] {
+  return nodes.filter((n) => n.id !== nodeId && canMoveTo(nodes, nodeId, n.id))
+}

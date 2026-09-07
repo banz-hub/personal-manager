@@ -38,7 +38,9 @@ import {
   nudgeBlock,
   removeBlock,
   resizeBlock,
+  setBlockStart,
   unplaced,
+  whyCannotStart,
   NUDGE_MIN,
 } from '../lib/planedit'
 import { applyImport, linkedCount, parsePlanText, type ImportResult } from '../lib/importplan'
@@ -662,6 +664,17 @@ export default function TodayPage() {
                       >
                         ＋
                       </button>
+                      <input
+                        type="time"
+                        className="blk-time-input"
+                        value={b.start}
+                        title="開始時刻を決める"
+                        onChange={(e) => {
+                          const why = whyCannotStart(plan, b.id, e.target.value)
+                          setWriteMessage(why ?? '')
+                          editPlan(setBlockStart(plan, b.id, e.target.value))
+                        }}
+                      />
                       <button
                         type="button"
                         className="btn ghost sm"
@@ -679,7 +692,8 @@ export default function TodayPage() {
             {editingPlan && (
               <>
                 <p className="hint">
-                  ◀▶ で {NUDGE_MIN} 分ずらし、−＋ で長さを変えます。ほかのコマと重なる動きはしません。
+                  ◀▶ で {NUDGE_MIN} 分ずらし、−＋ で長さを変え、時刻の欄で開始時刻を直に決めます。
+                  ほかのコマと重なる動きはしません（重なるときは理由を上に出します）。
                   完了したコマは実績なので触れません。
                 </p>
                 {unplaced(plan, ctx.schedulable).length > 0 && (

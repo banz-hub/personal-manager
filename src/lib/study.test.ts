@@ -4,6 +4,9 @@ import {
   allLeaves,
   areaOf,
   ATTENTION_CAP,
+  canMoveTo,
+  moveNode,
+  moveTargets,
   buildExamPlan,
   buildProgress,
   childrenOf,
@@ -420,5 +423,68 @@ describe('重複加算を防ぐ', () => {
     const top = rankStudy(rankInput(nodes, { sessions, exams }))[0]
 
     expect(top.score).toBeLessThan(180)
+  })
+})
+
+describe('親の付け替え', () => {
+  const tree = (): StudyNode[] => [
+    node({ id: 'math', title: '数学', area: 'math' }),
+    node({ id: 'topo', title: '位相空間論', parentId: 'math', order: 0 }),
+    node({ id: 'open', title: '開集合', parentId: 'topo', order: 0 }),
+    node({ id: 'closed', title: '閉集合', parentId: 'topo', order: 1 }),
+    node({ id: 'cert', title: '資格', area: 'cert', order: 1 }),
+  ]
+
+  it('別の親の下へ動かせる', () => {
+    const next = moveNode(tree(), 'open', 'cert')
+    expect(next.find((n) => n.id === 'open')!.parentId).toBe('cert')
+  })
+
+  it('自分自身の下には動かせない', () => {
+    expect(canMoveTo(tree(), 'topo', 'topo')).toBe(false)
+    expect(moveNode(tree(), 'topo', 'topo').find((n) => n.id === 'topo')!.parentId).toBe('math')
+  })
+
+  it('自分の配下には動かせない。輪ができてしまうため', () => {
+    expect(canMoveTo(tree(), 'topo', 'open')).toBe(false)
+    expect(moveNode(tree(), 'topo', 'open').find((n) => n.id === 'topo')!.parentId).toBe('math')
+  })
+
+  it('いちばん上（科目）に上げられる', () => {
+    const next = moveNode(tree(), 'topo', undefined)
+    const moved = next.find((n) => n.id === 'topo')!
+    expect(moved.parentId).toBeUndefined()
+    // 科目には分野が要るので、元の親から受け継ぐ
+    expect(moved.area).toBe('math')
+  })
+
+  it('下に入れると分野は持たなくなる。親からたどるため', () => {
+    const next = moveNode(tree(), 'cert', 'math')
+    expect(next.find((n) => n.id === 'cert')!.area).toBeUndefined()
+    expect(areaOf(next, 'cert')).toBe('math')
+  })
+
+  it('移動先の末尾に入る', () => {
+    const next = moveNode(tree(), 'open', 'math')
+    // math の下には topo(0) があるので、open は 1
+    expect(next.find((n) => n.id === 'open')!.order).toBe(1)
+  })
+
+  it('元いた場所の並びは詰め直される', () => {
+    const next = moveNode(tree(), 'open', 'cert')
+    // topo に残った closed は 0 になる
+    expect(next.find((n) => n.id === 'closed')!.order).toBe(0)
+  })
+
+  it('同じ親に動かしても何も変わらない', () => {
+    const before = tree()
+    expect(moveNode(before, 'open', 'topo')).toBe(before)
+  })
+
+  it('付け替え先の候補から、自分と自分の配下は外れる', () => {
+    const ids = moveTargets(tree(), 'topo').map((n) => n.id)
+    expect(ids).not.toContain('topo')
+    expect(ids).not.toContain('open')
+    expect(ids).toContain('cert')
   })
 })

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { newId } from '../lib/id'
-import { childrenOf, pathLabel, withDescendants } from '../lib/study'
+import { childrenOf, moveTargets, pathLabel, withDescendants } from '../lib/study'
 import { Field } from './ui'
 import {
   AREA_LABELS,
@@ -133,6 +133,29 @@ export function NodeForm({ initial, nodes, onSave, onCancel, onDelete }: NodeFor
             ))}
           </select>
         </Field>
+      )}
+
+      {!isNew && (
+        <Field label="どこに置くか">
+          <select
+            value={node.parentId ?? ''}
+            onChange={(e) => patch({ parentId: e.target.value || undefined })}
+          >
+            <option value="">いちばん上（科目にする）</option>
+            {moveTargets(nodes, node.id).map((n) => (
+              <option key={n.id} value={n.id}>
+                {pathLabel(nodes, n.id) ? `${pathLabel(nodes, n.id)} / ` : ''}
+                {n.title}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
+      {!isNew && (
+        <p className="hint">
+          自分自身と、自分の下にぶら下がっているものは選べません（親子が輪になってしまうため）。
+          動かすと移動先の末尾に入ります。
+        </p>
       )}
 
       <Field label="メモ">

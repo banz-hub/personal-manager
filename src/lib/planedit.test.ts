@@ -7,7 +7,9 @@ import {
   nudgeBlock,
   removeBlock,
   resizeBlock,
+  setBlockStart,
   unplaced,
+  whyCannotStart,
   NUDGE_MIN,
 } from './planedit'
 
@@ -172,5 +174,51 @@ describe('まだ入っていないもの', () => {
     const p = plan([block({ id: 'a', taskId: 't1' }), block({ id: 'b', kind: 'study', nodeId: 'n1' })])
     const items = [item({ refId: 't1' }), item({ refId: 't2' }), item({ refId: 'n1', kind: 'study' })]
     expect(unplaced(p, items).map((i) => i.refId)).toEqual(['t2'])
+  })
+})
+
+describe('開始時刻を直接決める', () => {
+  const base = () =>
+    plan([
+      block({ id: 'a', start: '19:00', end: '20:00' }),
+      block({ id: 'b', start: '21:00', end: '22:00' }),
+    ])
+
+  it('空いている時刻へ動かせる', () => {
+    const p = setBlockStart(base(), 'a', '09:00')
+    const a = p.blocks.find((x) => x.id === 'a')!
+    expect(a.start).toBe('09:00')
+    expect(a.end).toBe('10:00')
+  })
+
+  it('長さは変わらない', () => {
+    const p = setBlockStart(plan([block({ id: 'a', start: '19:00', end: '19:30' })]), 'a', '08:00')
+    expect(p.blocks[0].end).toBe('08:30')
+  })
+
+  it('ほかと重なる時刻には置かない', () => {
+    const p = setBlockStart(base(), 'a', '21:30')
+    expect(p.blocks.find((x) => x.id === 'a')!.start).toBe('19:00')
+  })
+
+  it('日をまたぐ時刻には置かない', () => {
+    const p = setBlockStart(plan([block({ id: 'a', start: '19:00', end: '20:00' })]), 'a', '23:30')
+    expect(p.blocks[0].start).toBe('19:00')
+  })
+
+  it('完了済みは動かさない', () => {
+    const p = plan([block({ id: 'a', doneAt: 'x' })])
+    expect(setBlockStart(p, 'a', '09:00').blocks[0].start).toBe('19:00')
+  })
+
+  it('置けないときは理由が分かる', () => {
+    expect(whyCannotStart(base(), 'a', '21:30')).toContain('重なります')
+    expect(whyCannotStart(base(), 'a', '23:30')).toContain('日をまたぐ')
+    expect(whyCannotStart(base(), 'a', '09:00')).toBeNull()
+  })
+
+  it('完了済みなら、そう言う', () => {
+    const p = plan([block({ id: 'a', doneAt: 'x' })])
+    expect(whyCannotStart(p, 'a', '09:00')).toContain('完了したコマ')
   })
 })
