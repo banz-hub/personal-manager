@@ -7,14 +7,16 @@
 
 import { lazy, type ReactNode } from 'react'
 import type { Feature } from '../../app/types'
+import { backupFilename, buildBackup, parseBackup, repository, restoreAll } from './lib/storage'
+import { AppProvider, useApp } from './state/AppContext'
+
+// 画面は開いたときに読む。機能が増えても最初の読み込みが重くならない
 const JobPage = lazy(() => import('./pages/JobPage'))
 const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const StudyPage = lazy(() => import('./pages/StudyPage'))
 const TasksPage = lazy(() => import('./pages/TasksPage'))
 const TodayPage = lazy(() => import('./pages/TodayPage'))
-import { buildBackup, parseBackup, repository, restoreAll } from './lib/storage'
-import { AppProvider, useApp } from './state/AppContext'
 
 /**
  * 読み込みが終わるまで待つ。
@@ -51,6 +53,7 @@ export const shirei: Feature = {
     key: 'shirei',
     export: async () => buildBackup(await repository.loadAll()),
     import: async (raw) => restoreAll(parseBackup(raw)),
+    filename: backupFilename,
   },
   routes: [
     { path: '/', element: page(<TodayPage />) },

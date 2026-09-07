@@ -13,6 +13,11 @@
 
 import { lazy, type ReactNode } from 'react'
 import type { Feature } from '../../app/types'
+import { backupFilename, buildBackup, parseBackup, repository, restoreAll } from './lib/storage'
+import { AppProvider, useApp } from './state/AppContext'
+import './yotei.css'
+
+// 画面は開いたときに読む。機能が増えても最初の読み込みが重くならない
 const BulkRoutesPage = lazy(() => import('./pages/BulkRoutesPage'))
 const CalendarPage = lazy(() => import('./pages/CalendarPage'))
 const JobsPage = lazy(() => import('./pages/JobsPage'))
@@ -27,9 +32,6 @@ const TodosPage = lazy(() => import('./pages/TodosPage'))
 const TrainsPage = lazy(() => import('./pages/TrainsPage'))
 const TravelPage = lazy(() => import('./pages/TravelPage'))
 const TripsPage = lazy(() => import('./pages/TripsPage'))
-import { buildBackup, parseBackup, repository, restoreAll } from './lib/storage'
-import { AppProvider, useApp } from './state/AppContext'
-import './yotei.css'
 
 /** 読み込みが終わるまで待つ。合わせて見た目の囲いも兼ねる */
 function Gate({ children }: { children: ReactNode }) {
@@ -70,6 +72,7 @@ export const yotei: Feature = {
     key: 'yotei',
     export: async () => buildBackup(await repository.loadAll()),
     import: async (raw) => restoreAll(parseBackup(raw)),
+    filename: backupFilename,
   },
   routes: [
     { path: '/yotei', element: page(<TodayPage />) },

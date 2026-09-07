@@ -1,11 +1,11 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import EvaluationCard from '../components/EvaluationCard'
 import SectionTabs from '../components/SectionTabs'
 import { exerciseNameFrom } from '../data/exercises'
 import { muscleName } from '../data/muscles'
 import { shiftDateKey, shortDateLabel } from '../lib/calc'
 import { evaluateSession } from '../lib/evaluation'
-import { exportBackup, importBackup } from '../lib/storage'
 import { useApp } from '../state/AppContext'
 import type { LoggedSet, WorkoutSession } from '../types'
 
@@ -28,32 +28,9 @@ function durationMinutes(s: WorkoutSession): number | null {
 }
 
 export default function HistoryPage() {
-  const { profile, goal, sessions, exerciseMap, upsertSession, deleteSession, reload } = useApp()
+  const { profile, goal, sessions, exerciseMap, upsertSession, deleteSession } = useApp()
   const [message, setMessage] = useState('')
   const [draft, setDraft] = useState<WorkoutSession | null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
-
-  async function handleExport() {
-    const data = await exportBackup()
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `kintore-backup-${data.exportedAt.slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  async function handleImport(file: File) {
-    try {
-      const text = await file.text()
-      await importBackup(JSON.parse(text))
-      await reload()
-      setMessage('バックアップを読み込みました')
-    } catch (err) {
-      setMessage(`読み込みに失敗しました: ${(err as Error).message}`)
-    }
-  }
 
   function patchDraftSet(exIdx: number, setIdx: number, patch: Partial<LoggedSet>) {
     setDraft((prev) =>
@@ -347,30 +324,21 @@ export default function HistoryPage() {
         </ul>
       )}
 
+      {/*
+        書き出し・読み込みはエージェントの設定に集めた。
+        同じことをする場所が 4 つあって、どれを押せばよいか分からなかったため。
+      */}
       <section className="card">
         <h2>バックアップ</h2>
         <p className="muted">
-          データはこの端末のブラウザ内にのみ保存されます。機種変更や別の端末で使う場合は
-          JSONファイルで書き出して読み込んでください。
+          書き出し・読み込みは <strong>設定 → データの引っ越し</strong> にまとめてあります。
+          3 つまとめて 1 ファイルで持ち運べます。筋トレのぶんだけ入れ替えたいときは、
+          そこの「1つずつ」を開いてください。
         </p>
         <div className="form-actions">
-          <button type="button" onClick={handleExport}>
-            JSONで書き出す
-          </button>
-          <button type="button" onClick={() => fileRef.current?.click()}>
-            JSONから読み込む
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/json"
-            hidden
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              if (file) void handleImport(file)
-              e.target.value = ''
-            }}
-          />
+          <Link className="btn" to="/settings">
+            設定を開く
+          </Link>
           {message && <span className="saved-note">{message}</span>}
         </div>
       </section>

@@ -10,12 +10,11 @@ import {
 import { loadYoteichoDay } from '../lib/bridge/yoteicho'
 import { todayKey } from '../lib/date'
 import { BACKUP_INTERVAL_DAYS } from '../lib/routine'
-import { backupFilename, buildBackup, parseBackup } from '../lib/storage'
 import { useApp } from '../state/AppContext'
-import { allBackupFilename, exportAll, importAll } from '../../../app/backup'
+import BackupSection from '../../../app/BackupSection'
 
 export default function SettingsPage() {
-  const { data, setSettings, replaceAll, reset } = useApp()
+  const { data, setSettings, reset } = useApp()
   const s = data.settings
   const [message, setMessage] = useState('')
   const [link, setLink] = useState<string | null>(null)
@@ -64,64 +63,6 @@ export default function SettingsPage() {
       alive = false
     }
   }, [s.useYoteicho, s.dayStart, s.dayEnd, s.minSlotMin, s.travelAllowanceMin])
-
-  const exportJson = () => {
-    const blob = new Blob([JSON.stringify(buildBackup(data), null, 2)], {
-      type: 'application/json',
-    })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = backupFilename()
-    a.click()
-    URL.revokeObjectURL(url)
-    // 催促の間隔を数えるために、書き出した日を覚えておく
-    setSettings({ lastBackupOn: todayKey() })
-    setMessage('書き出しました')
-  }
-
-
-  /** 中身を JSON にしてダウンロードさせる。書き出しは全部これを通す */
-  const download = (payload: unknown, filename: string) => {
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const exportEverything = async () => {
-    download(await exportAll(), allBackupFilename())
-    setSettings({ lastBackupOn: todayKey() })
-    setMessage('3つまとめて書き出しました')
-  }
-
-  const importEverything = async (file: File) => {
-    try {
-      const report = await importAll(JSON.parse(await file.text()))
-      const parts = [
-        report.done.length > 0 ? `読み込んだ: ${report.done.join('・')}` : '',
-        report.missing.length > 0 ? `入っていなかった: ${report.missing.join('・')}` : '',
-        ...report.failed.map((x) => `${x.label}は読めませんでした (${x.reason})`),
-      ].filter(Boolean)
-      setMessage(parts.join(' / '))
-      // 画面が持っている中身は古いままなので、読み直させる
-      if (report.done.length > 0) setTimeout(() => window.location.reload(), 1200)
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : '読み込めませんでした')
-    }
-  }
-
-  const importJson = async (file: File) => {
-    try {
-      await replaceAll(parseBackup(JSON.parse(await file.text())))
-      setMessage('読み込みました')
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : '読み込めませんでした')
-    }
-  }
 
   return (
     <div className="page">
@@ -372,70 +313,26 @@ export default function SettingsPage() {
         </p>
       </section>
 
-      {/*
-        端末を移すときに 3 回書き出して 3 回読み込む、という手間をなくすためのもの。
-        中身は機能ごとに分けたまま 1 つのファイルに入れてある。
-      */}
-      <section className="bucket">
-        <h2 className="section">データ（3つまとめて）</h2>
-        <div className="row">
-          <button type="button" className="btn primary grow" onClick={() => void exportEverything()}>
-            まとめて書き出す
-          </button>
-          <label className="btn grow" style={{ textAlign: 'center', cursor: 'pointer' }}>
-            まとめて読み込む
-            <input
-              type="file"
-              accept="application/json"
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                if (f) void importEverything(f)
-              }}
-            />
-          </label>
-        </div>
-        <p className="hint">
-          エージェント・よてい帳・筋トレログの 3 つが 1 つのファイルに入ります。新しい端末では
-          これ 1 つを読み込めば済みます。読み込みは<strong>まるごと上書き</strong>で、
-          ファイルに入っていないぶんは触りません。
-          {s.lastBackupOn ? ` 最後に書き出したのは ${s.lastBackupOn} です。` : ' まだ一度も書き出していません。'}
-        </p>
-      </section>
+      {/* 書き出し・読み込みはアプリ全体でここ 1 か所だけ */}
+      <BackupSection onExported={() => setSettings({ lastBackupOn: todayKey() })} />
 
       <section className="bucket">
-        <h2 className="section">データ（エージェントのぶんだけ）</h2>
-        <div className="row">
-          <button type="button" className="btn grow" onClick={exportJson}>
-            書き出す
-          </button>
-          <label className="btn grow" style={{ textAlign: 'center', cursor: 'pointer' }}>
-            読み込む
-            <input
-              type="file"
-              accept="application/json"
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                if (f) void importJson(f)
-              }}
-            />
-          </label>
-        </div>
+        <h2 className="section">消す</h2>
         <p className="hint">
-          タスク・学習・就活だけを入れ替えたいときに使います。予定と筋トレには触りません。
-          データは端末のブラウザの中にしかないので、月に一度は書き出して private リポジトリに置いてください。
+          エージェントのぶん（タスク・学習・就活）だけを消します。予定と筋トレは残ります。
+          元に戻せないので、先に書き出しておいてください。
+          {s.lastBackupOn ? ` 最後に書き出したのは ${s.lastBackupOn} です。` : ' まだ一度も書き出していません。'}
         </p>
         <button
           type="button"
           className="btn ghost"
           onClick={() => {
-            if (window.confirm('すべてのデータを消します。よろしいですか？')) {
+            if (window.confirm('エージェントのデータを消します。よろしいですか？')) {
               void reset().then(() => setMessage('消しました'))
             }
           }}
         >
-          すべて消す
+          エージェントのデータを消す
         </button>
       </section>
 

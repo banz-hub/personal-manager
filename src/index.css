@@ -1007,3 +1007,19 @@ table.compare td:first-child {
   font-size: 18px;
   line-height: 1;
 }
+
+/* 「1つずつ」のたたみ */
+.backup-one {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  margin-top: 4px;
+}
+.backup-one > summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  padding: 4px 0;
+}
+.backup-one .row {
+  padding: 4px 0;
+}

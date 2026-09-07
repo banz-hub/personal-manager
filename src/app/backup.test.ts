@@ -21,6 +21,7 @@ function feature(id: string, key: string, opts: Partial<{ data: unknown; fail: s
       import: async () => {
         if (opts.fail) throw new Error(opts.fail)
       },
+      filename: () => `${key}.json`,
     },
   }
 }

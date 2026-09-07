@@ -67,4 +67,6 @@ export interface FeatureBackup {
   export(): Promise<unknown>
   /** 中身が違えば投げる。読み込みはまるごと上書き */
   import(raw: unknown): Promise<void>
+  /** この機能だけを書き出したときのファイル名 */
+  filename(): string
 }

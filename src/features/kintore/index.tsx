@@ -12,6 +12,11 @@
 import { lazy, useEffect, type ReactNode } from 'react'
 import type { Feature } from '../../app/types'
 import { loadReminder, scheduleWhileOpen, showReminderNow } from './lib/reminders'
+import { exportBackup, importBackup } from './lib/storage'
+import { AppProvider, useApp } from './state/AppContext'
+import './kintore.css'
+
+// 画面は開いたときに読む。機能が増えても最初の読み込みが重くならない
 const AchievementsPage = lazy(() => import('./pages/AchievementsPage'))
 const ExercisesPage = lazy(() => import('./pages/ExercisesPage'))
 const GoalPage = lazy(() => import('./pages/GoalPage'))
@@ -20,9 +25,6 @@ const HomePage = lazy(() => import('./pages/HomePage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const StatsPage = lazy(() => import('./pages/StatsPage'))
 const WorkoutPage = lazy(() => import('./pages/WorkoutPage'))
-import { exportBackup, importBackup } from './lib/storage'
-import { AppProvider, useApp } from './state/AppContext'
-import './kintore.css'
 
 /**
  * 読み込み待ちと見た目の囲い。
@@ -70,6 +72,7 @@ export const kintore: Feature = {
     key: 'kintore',
     export: () => exportBackup(),
     import: (raw) => importBackup(raw),
+    filename: () => `kintore-backup-${new Date().toISOString().slice(0, 10)}.json`,
   },
   routes: [
     { path: '/kintore', element: page(<HomePage />) },

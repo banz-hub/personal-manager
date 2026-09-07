@@ -1,11 +1,9 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Empty, Field, FieldRow, Note, SectionTabs, Sheet, StationInput } from '../components/ui'
 import { newId } from '../lib/id'
 import { notificationSupport, requestNotificationPermission } from '../lib/reminders'
 import { knownStations } from '../lib/routes'
-import { backupFilename, buildBackup, parseBackup } from '../lib/storage'
-import { downloadText } from '../lib/transit'
 import { allStations } from '../data/stations'
 import { useApp } from '../state/AppContext'
 import { SPOT_LABELS, type Place, type SpotKind } from '../types'
@@ -31,28 +29,16 @@ function blankPlace(): Place {
 }
 
 export default function SettingsPage() {
-  const { data, setProfile, upsert, remove, replaceAll, reset } = useApp()
+  const { data, setProfile, upsert, remove, reset } = useApp()
   const [tab, setTab] = useState<'me' | 'place' | 'data'>('me')
   const [editing, setEditing] = useState<Place | null>(null)
   const [message, setMessage] = useState('')
-  const fileRef = useRef<HTMLInputElement>(null)
 
   const stations = useMemo(
     () => knownStations(data.legs, [data.profile.homeStation, ...data.places.map((p) => p.station), ...allStations()]),
     [data.legs, data.places, data.profile.homeStation],
   )
   const support = notificationSupport()
-
-  const importFile = async (file: File) => {
-    try {
-      const parsed = parseBackup(JSON.parse(await file.text()))
-      if (!confirm('今の内容をすべて置き換えます。よろしいですか？')) return
-      await replaceAll(parsed)
-      setMessage('読み込みました。')
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : '読み込めませんでした。')
-    }
-  }
 
   return (
     <div className="page">
@@ -201,42 +187,20 @@ export default function SettingsPage() {
 
       {tab === 'data' ? (
         <>
+          {/*
+            書き出し・読み込みはエージェントの設定に集めた。
+            同じことをする場所が 4 つあって、どれを押せばよいか分からなかったため。
+          */}
           <div className="card">
             <h2>バックアップ</h2>
             <p className="muted small">
-              データはこの端末の中だけに保存されています。機種変更のときは、ここで書き出した
-              ファイルを新しい端末で読み込んでください。
+              書き出し・読み込みは <strong>設定 → データの引っ越し</strong> にまとめてあります。
+              3 つまとめて 1 ファイルで持ち運べます。よてい帳のぶんだけ入れ替えたいときは、
+              そこの「1つずつ」を開いてください。
             </p>
-            <div className="btn-row">
-              <button
-                type="button"
-                className="btn primary"
-                onClick={() => {
-                  downloadText(
-                    backupFilename(),
-                    JSON.stringify(buildBackup(data), null, 2),
-                    'application/json',
-                  )
-                  setMessage('書き出しました。')
-                }}
-              >
-                書き出す
-              </button>
-              <button type="button" className="btn" onClick={() => fileRef.current?.click()}>
-                読み込む
-              </button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="application/json,.json"
-                hidden
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) void importFile(file)
-                  e.target.value = ''
-                }}
-              />
-            </div>
+            <Link className="btn" to="/settings">
+              設定を開く
+            </Link>
             {message ? <p className="muted small">{message}</p> : null}
           </div>
 
