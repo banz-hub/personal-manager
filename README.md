@@ -19,6 +19,32 @@ npm run dev
 - `npm run build` … 本番用に書き出す（`dist/`）
 - `npm run test` … Vitest
 - `npm run lint` … oxlint
+- `npm run icons` … アイコンの PNG を作り直す（形を変えたときだけ）
+
+## 組み立て方（機能を足すとき）
+
+```
+src/
+  main.tsx           Provider を入れ子にして App を出す
+  app/
+    types.ts         Feature の形
+    features.ts      積んである機能の一覧 ← 足すときはここ
+    App.tsx          外枠。下タブと経路をこの一覧から作る
+  features/
+    shirei/          今日・タスク・学習・就活・ふりかえり・設定
+      index.tsx      この機能の登録内容
+      pages/ lib/ components/ state/ types.ts
+```
+
+**画面を 1 つ足すとき**は、その機能の `pages/` にファイルを作り、`index.tsx` の
+`routes` に 1 行足す。下タブにも出したいなら `nav` にも 1 行。`App.tsx` は触らない。
+
+**機能をまるごと足すとき**は、`features/` の下にフォルダを作って `Feature` を
+1 つ書き出し、`features.ts` の配列に足す。下タブの並び順は配列の順そのまま。
+
+機能どうしは互いに import しない。他の機能のデータが要るときは、相手が公開して
+いる読み取り口（`lib/bridge/` のような形）を通す。相手のストアを直接触ると、
+どちらが正しいのか分からなくなる。
 
 ## 3 つのアプリの役割
 
