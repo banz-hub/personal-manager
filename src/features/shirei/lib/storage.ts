@@ -7,6 +7,7 @@ import type {
   SelectionEvent,
   Settings,
   StudyNode,
+  SleepLog,
   StudySession,
   Task,
   TaskLog,
@@ -30,6 +31,8 @@ export interface AppData {
   selections: SelectionEvent[]
   // --- 週次レビュー (Phase 5) ---
   weeklyReviews: WeeklyReview[]
+  // --- 睡眠 ---
+  sleepLogs: SleepLog[]
 }
 
 export const EMPTY_DATA: AppData = {
@@ -44,6 +47,7 @@ export const EMPTY_DATA: AppData = {
   companies: [],
   selections: [],
   weeklyReviews: [],
+  sleepLogs: [],
 }
 
 /**
@@ -125,6 +129,8 @@ export function parseBackup(raw: unknown): AppData {
     companies: data.companies ?? [],
     selections: data.selections ?? [],
     weeklyReviews: data.weeklyReviews ?? [],
+    // 睡眠より前のバックアップには入っていない
+    sleepLogs: data.sleepLogs ?? [],
   }
 }
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import SleepCard from '../components/SleepCard'
 import TaskForm, { blankTask } from '../components/TaskForm'
 import { Banner, Empty, Popup, Sheet, Stat } from '../components/ui'
 import { loadKintoreDay, type KintoreDay } from '../lib/bridge/kintore'
@@ -162,6 +163,7 @@ export default function TodayPage() {
         slots,
         settings,
         workout: kintore ?? undefined,
+        sleepLogs: data.sleepLogs,
         plan,
       }),
     [
@@ -174,6 +176,7 @@ export default function TodayPage() {
       data.sessions,
       data.companies,
       data.selections,
+      data.sleepLogs,
       yoteicho,
       kintore,
       slots,
@@ -395,6 +398,9 @@ export default function TodayPage() {
 
       <RoutineCard step={routine} onAction={runRoutine} />
 
+      {/* 起きてすぐ押すので、下のほうに置かない */}
+      <SleepCard date={date} nowMin={now} />
+
       {/* --- 一画面で今日をつかむ --- */}
       <Dashboard
         ctx={ctx}
@@ -406,7 +412,11 @@ export default function TodayPage() {
       {/* --- 何をすべきか、を最初に --- */}
       <Banner>{explainTop(ctx.ranked)}</Banner>
       {ctx.study.length > 0 && <Banner>{explainStudy(ctx.study)}</Banner>}
-      {ctx.easedNote && <Banner alert>{ctx.easedNote}</Banner>}
+      {ctx.adjustNotes.map((n) => (
+        <Banner alert key={n}>
+          {n}
+        </Banner>
+      ))}
       {triage && (
         <Banner alert>
           {triage}

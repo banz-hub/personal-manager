@@ -1023,3 +1023,91 @@ table.compare td:first-child {
 .backup-one .row {
   padding: 4px 0;
 }
+
+/* ---------- 睡眠 ---------- */
+
+.sleep-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sleep-len {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+/* 評価の色。タスクの色分けと同じ意味で使う */
+.tag.b-routine {
+  color: var(--routine);
+  border-color: var(--routine);
+}
+.tag.b-optional {
+  color: var(--optional);
+  border-color: var(--optional);
+}
+.tag.b-important {
+  color: var(--important);
+  border-color: var(--important);
+}
+.tag.b-urgent {
+  color: var(--urgent);
+  border-color: var(--urgent);
+}
+
+.sleep-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sleep-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sleep-bar-day {
+  width: 68px;
+  flex: none;
+  color: var(--muted);
+}
+
+.sleep-bar-track {
+  flex: 1;
+  min-width: 0;
+  height: 14px;
+  background: var(--surface-2);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.sleep-bar {
+  display: block;
+  height: 100%;
+  border-radius: 7px;
+}
+.sleep-bar.b-routine {
+  background: var(--routine);
+}
+.sleep-bar.b-optional {
+  background: var(--optional);
+}
+.sleep-bar.b-important {
+  background: var(--important);
+}
+.sleep-bar.b-urgent {
+  background: var(--urgent);
+}
+
+.sleep-bar-len {
+  width: 62px;
+  flex: none;
+  text-align: right;
+  color: var(--muted);
+}

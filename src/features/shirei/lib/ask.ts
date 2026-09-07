@@ -101,7 +101,7 @@ function todayAnswer(ctx: TodayContext): Answer {
       `ただし期限切れが${overdue.length}件あります（${overdue.map((s) => s.task.title).join('、')}）。やるか、やめるかを先に決めてください。`,
     )
   }
-  if (ctx.easedNote) lines.push(ctx.easedNote)
+  for (const n of ctx.adjustNotes) lines.push(n)
   if (!ctx.plan) lines.push('「今日の予定を作る」を押すと、この順で時間割に落とします。')
 
   return { topic: 'today', headline, lines }

@@ -3,6 +3,7 @@
  * 画面はこの結果を並べるだけにして、判断はすべて priority / study / scheduler に置く。
  */
 
+import { sleepAdjustedSettings, summarize, type SleepSummary } from './sleep'
 import type {
   Company,
   DayPlan,
@@ -11,6 +12,7 @@ import type {
   Settings,
   StudyNode,
   StudySession,
+  SleepLog,
   Task,
   TaskLog,
 } from '../types'
@@ -51,8 +53,10 @@ export interface TodayContext {
   selectionsByUrgency: Record<Urgency, DatedSelection[]>
   /** 筋トレログから読んだ今日の状況 */
   workout?: KintoreDay
-  /** 疲労を見て詰め込みを緩めたときの説明 */
-  easedNote?: string
+  /** 今日の睡眠 */
+  sleep: SleepSummary
+  /** 疲労や睡眠を見て設定を変えたときの説明。変えていなければ空 */
+  adjustNotes: string[]
   /** 実際に予定表を組むときに使う設定 (緩めたぶんが入っている) */
   planSettings: Settings
   /** 予定表を組むときに渡すもの。タスクと学習を混ぜてある */
@@ -74,6 +78,7 @@ export interface BuildInput {
   slots: FreeSlot[]
   settings: Settings
   workout?: KintoreDay
+  sleepLogs: SleepLog[]
   plan?: DayPlan
 }
 
@@ -104,7 +109,11 @@ export function buildToday(input: BuildInput): TodayContext {
 
   const selections = upcomingSelections(input.selections, input.companies, input.date)
 
+  const sleep = summarize(input.sleepLogs, input.date, settings)
   const eased = easedSettings(settings, input.workout)
+  // 睡眠は疲労のあとに掛ける。両方が下げる日は、下げすぎないよう下限で止まる
+  const adjusted = sleepAdjustedSettings(eased.settings, sleep)
+  const adjustNotes = [eased.note, ...adjusted.notes].filter((x): x is string => x != null)
 
   return {
     date: input.date,
@@ -119,8 +128,9 @@ export function buildToday(input: BuildInput): TodayContext {
     selections,
     selectionsByUrgency: groupByUrgency(selections),
     workout: input.workout,
-    easedNote: eased.note,
-    planSettings: eased.settings,
+    sleep,
+    adjustNotes,
+    planSettings: adjusted.settings,
     schedulable: mergeForSchedule(ranked, study, input.workout, settings),
     plan: input.plan,
   }
@@ -344,9 +354,22 @@ export function buildContextText(ctx: TodayContext): string {
     if (w.restRecommended) lines.push('- 休養を勧める状態')
   }
 
-  if (ctx.easedNote) {
+  if (ctx.sleep.minutes > 0 || ctx.sleep.ongoing) {
     lines.push('')
-    lines.push(`## 今日の調整\n- ${ctx.easedNote}`)
+    lines.push('## 睡眠')
+    lines.push(
+      ctx.sleep.ongoing
+        ? `- ${ctx.sleep.bedAt}から寝ている最中`
+        : `- ${ctx.sleep.bedAt}〜${ctx.sleep.wakeAt} 合計${formatDuration(ctx.sleep.minutes)}` +
+          `（目標比 ${ctx.sleep.diffMin >= 0 ? '+' : '−'}${formatDuration(Math.abs(ctx.sleep.diffMin))}）` +
+          (ctx.sleep.snoozeCount > 0 ? ` · 二度寝${ctx.sleep.snoozeCount}回` : ''),
+    )
+  }
+
+  if (ctx.adjustNotes.length > 0) {
+    lines.push('')
+    lines.push('## 今日の調整')
+    for (const n of ctx.adjustNotes) lines.push(`- ${n}`)
   }
 
   if (ctx.plan) {

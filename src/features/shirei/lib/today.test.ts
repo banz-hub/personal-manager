@@ -51,6 +51,7 @@ function ctx(patch: Partial<BuildInput> = {}, settings: Partial<Settings> = {}) 
     sessions: [],
     companies: [],
     selections: [],
+    sleepLogs: [],
     fixed: [],
     slots: [slot('18:00', '23:00')],
     settings: { ...DEFAULT_SETTINGS, ...settings },

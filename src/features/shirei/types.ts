@@ -211,6 +211,16 @@ export interface Settings {
   lastBackupOn?: string
   /** 朝と夜の案内を出すか */
   showRoutine: boolean
+  /** 起きた時刻・寝る目標に合わせて今日の予定を組み直すか */
+  useSleep: boolean
+  /** 目標の睡眠時間 (分) */
+  targetSleepMin: number
+  /** 目標の就寝時刻。ここから逆算して夜の作業の終わりを決める */
+  targetBedtime: string
+  /** 起きてから作業に入るまでの支度 (分) */
+  wakeBufferMin: number
+  /** 寝る前に必要な支度 (分) */
+  bedtimeBufferMin: number
   updatedAt: string
 }
 
@@ -230,6 +240,12 @@ export const DEFAULT_SETTINGS: Settings = {
   easeAfterWorkout: true,
   notifyEnabled: true,
   notifyBeforeMin: 10,
+  useSleep: true,
+  // 大学生の必要量として一般に言われる 7〜9 時間の下寄り
+  targetSleepMin: 450,
+  targetBedtime: '23:30',
+  wakeBufferMin: 30,
+  bedtimeBufferMin: 30,
   showRoutine: true,
   updatedAt: '',
 }
@@ -533,4 +549,32 @@ export interface WeeklySummary {
     available: boolean
   }
   improvements: string[]
+}
+
+// ---------- 睡眠 ----------
+
+/**
+ * ひと晩ぶんの睡眠。
+ *
+ * 二度寝を別の記録にせず、同じ晩の中の 2 つ目の区間として持つ。
+ * 「6時に起きて6時10分に二度寝して7時半に起きた」を
+ * 「2回寝た」ではなく「1晩のうちに1回起きた」として数えたいため。
+ */
+export interface SleepLog {
+  id: string
+  /** 起きた日 (YYYY-MM-DD)。日付をまたぐので、寝た日ではなく起きた日で数える */
+  date: string
+  /** 寝ていた区間。`to` が無いものは、いま寝ている最中 */
+  spans: Array<{ from: string; to?: string }>
+  note?: string
+}
+
+/** 睡眠の評価 */
+export type SleepRating = 'good' | 'fair' | 'short' | 'broken'
+
+export const SLEEP_RATING_LABELS: Record<SleepRating, string> = {
+  good: 'よく眠れている',
+  fair: 'まずまず',
+  short: '足りていない',
+  broken: '細切れ',
 }

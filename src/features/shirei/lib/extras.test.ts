@@ -187,6 +187,7 @@ describe('聞かれたことへの答え', () => {
       sessions: [],
       companies: [],
       selections: [],
+      sleepLogs: [],
       fixed: [],
       slots: [{ startMin: toMinutes('18:00'), endMin: toMinutes('23:00') }],
       settings: DEFAULT_SETTINGS,

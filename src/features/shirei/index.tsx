@@ -14,6 +14,7 @@ import { AppProvider, useApp } from './state/AppContext'
 const JobPage = lazy(() => import('./pages/JobPage'))
 const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const SleepPage = lazy(() => import('./pages/SleepPage'))
 const StudyPage = lazy(() => import('./pages/StudyPage'))
 const TasksPage = lazy(() => import('./pages/TasksPage'))
 const TodayPage = lazy(() => import('./pages/TodayPage'))
@@ -45,6 +46,7 @@ export const shirei: Feature = {
     { to: '/tasks', label: 'タスク', icon: '📋' },
     { to: '/study', label: '学習', icon: '📚', primary: true },
     { to: '/job', label: '就活', icon: '💼' },
+    { to: '/sleep', label: '睡眠', icon: '😴' },
     { to: '/review', label: 'ふりかえり', icon: '🌙' },
     { to: '/settings', label: '設定', icon: '⚙️' },
   ],
@@ -60,6 +62,7 @@ export const shirei: Feature = {
     { path: '/tasks', element: page(<TasksPage />) },
     { path: '/study', element: page(<StudyPage />) },
     { path: '/job', element: page(<JobPage />) },
+    { path: '/sleep', element: page(<SleepPage />) },
     { path: '/review', element: page(<ReviewPage />) },
     { path: '/settings', element: page(<SettingsPage />) },
   ],
