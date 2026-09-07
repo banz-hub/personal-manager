@@ -63,6 +63,8 @@ export interface Task {
   recurring?: boolean
   /** 分解した親タスクの id */
   parentId?: string
+  /** どの企業のタスクか (就活のとき) */
+  companyId?: string
   createdAt: string
   startedAt?: string
   doneAt?: string
@@ -314,4 +316,195 @@ export interface StudySession {
   attempted?: number
   createdAt: string
   note?: string
+}
+
+// ==================== 就活 OS (Phase 4) ====================
+
+/** 選考の段階。順番に進む前提で並べてある */
+export type SelectionStage =
+  | 'none'
+  | 'research'
+  | 'es-draft'
+  | 'es-sent'
+  | 'briefing'
+  | 'test'
+  | 'interview1'
+  | 'interview2'
+  | 'interview-final'
+  | 'offer'
+  | 'declined'
+  | 'rejected'
+
+export const STAGE_LABELS: Record<SelectionStage, string> = {
+  none: '未応募',
+  research: '企業研究',
+  'es-draft': 'ES準備',
+  'es-sent': 'ES提出',
+  briefing: '説明会',
+  test: '適性検査',
+  interview1: '一次面接',
+  interview2: '二次面接',
+  'interview-final': '最終面接',
+  offer: '内定',
+  declined: '辞退',
+  rejected: 'お祈り',
+}
+
+/** 進行中の段階。ここに居る企業だけ「次にやること」を出す */
+export const ACTIVE_STAGES: SelectionStage[] = [
+  'none',
+  'research',
+  'es-draft',
+  'es-sent',
+  'briefing',
+  'test',
+  'interview1',
+  'interview2',
+  'interview-final',
+]
+
+/** 選考が終わった段階 */
+export const CLOSED_STAGES: SelectionStage[] = ['offer', 'declined', 'rejected']
+
+/**
+ * 企業について調べた「事実」。
+ *
+ * 評価 (ratings) と必ず分けて持つ。
+ * 「年間休日125日」は調べれば分かる事実、「ワークライフバランス ★★★★★」は自分の見立て。
+ * 同じ欄に混ぜると、あとで見返したときにどちらだったのか分からなくなる。
+ */
+export interface CompanyFacts {
+  /** 初任給・想定年収 (万円) */
+  salaryManYen?: number
+  /** 勤務地 */
+  location?: string
+  /** 年間休日 */
+  holidaysPerYear?: number
+  /** 平均残業 (時間/月) */
+  overtimeHoursPerMonth?: number
+  /** 福利厚生。調べて書き写したもの */
+  benefits?: string
+  /** 離職率 (%) */
+  turnoverRate?: number
+  /** 従業員数 */
+  employees?: number
+  /** どこで調べたか。事実には出どころを残す */
+  source?: string
+}
+
+/** 自分の見立て。1〜5 で、根拠は memo に書く */
+export interface CompanyRatings {
+  workLife?: number
+  growth?: number
+  culture?: number
+  stability?: number
+  /** 自分との適合度 */
+  fit?: number
+}
+
+export const RATING_LABELS: Record<keyof CompanyRatings, string> = {
+  workLife: 'ワークライフ',
+  growth: '成長',
+  culture: '社風',
+  stability: '安定性',
+  fit: '自分との相性',
+}
+
+export interface Company {
+  id: string
+  name: string
+  industry?: string
+  /** 職種 */
+  role?: string
+  stage: SelectionStage
+  /** 志望度 1〜5 */
+  interest: number
+  url?: string
+  memo?: string
+  facts: CompanyFacts
+  ratings: CompanyRatings
+  createdAt: string
+  updatedAt: string
+}
+
+/** 選考の予定 1 件。ES の締切も説明会も面接もこれで表す */
+export type SelectionKind = 'es' | 'briefing' | 'test' | 'interview' | 'other'
+
+export const SELECTION_KIND_LABELS: Record<SelectionKind, string> = {
+  es: 'ES締切',
+  briefing: '説明会',
+  test: '適性検査',
+  interview: '面接',
+  other: 'その他',
+}
+
+export interface SelectionEvent {
+  id: string
+  companyId: string
+  kind: SelectionKind
+  title: string
+  /** YYYY-MM-DD */
+  date: string
+  /** HH:MM。締切なら締切時刻、面接なら開始時刻 */
+  time?: string
+  place?: string
+  note?: string
+  /** 済んだか */
+  doneAt?: string
+  createdAt: string
+}
+
+// ==================== 週次レビュー (Phase 5) ====================
+
+export interface WeeklyReview {
+  /** 週の開始日 (月曜) をそのまま id にする */
+  id: string
+  weekStart: string
+  weekEnd: string
+  /** その週に計算した内容をそのまま残す。あとでデータが変わっても当時の姿が見える */
+  summary: WeeklySummary
+  note?: string
+  createdAt: string
+}
+
+export interface WeeklySummary {
+  weekStart: string
+  weekEnd: string
+  tasks: {
+    planned: number
+    done: number
+    deferred: number
+    /** 0〜1 */
+    completionRate: number
+    deferRate: number
+    plannedMin: number
+    actualMin: number
+    /** 実績 ÷ 予定。1 より大きいと見積もりが甘い。ログが無ければ null */
+    estimateRatio: number | null
+  }
+  study: {
+    totalMin: number
+    sessions: number
+    /** 分野ごとの学習時間。多い順 */
+    byArea: Array<[TaskArea, number]>
+    /** その週に習得まで進んだ項目数 */
+    masteredCount: number
+  }
+  jobhunt: {
+    esCount: number
+    briefingCount: number
+    interviewCount: number
+    /** 選考が動いている企業数 */
+    activeCompanies: number
+    /** 3 日以内に迫っている予定 */
+    upcomingCount: number
+  }
+  workout: {
+    count: number
+    totalMin: number
+    restDays: number
+    /** 読めなかったときは null */
+    available: boolean
+  }
+  improvements: string[]
 }

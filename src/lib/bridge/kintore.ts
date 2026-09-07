@@ -269,3 +269,26 @@ export async function loadKintoreDay(now: Date = new Date()): Promise<KintoreDay
     }
   }
 }
+
+/** 期間内の 1 日ぶんの記録 (週次レビュー用) */
+export interface WorkoutDay {
+  date: string
+  minutes: number
+}
+
+/**
+ * 期間の筋トレ実績を読む (読み取り専用)。
+ * 週次レビューでしか使わないので、日付と時間だけに絞ってある。
+ */
+export async function loadKintoreRange(from: string, to: string): Promise<WorkoutDay[] | null> {
+  try {
+    const sessions = await get<KSession[]>('sessions', store)
+    if (!sessions) return null
+    return sessions
+      .filter((s) => s.date >= from && s.date <= to)
+      .map((s) => ({ date: s.date, minutes: sessionMinutes(s) }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+  } catch {
+    return null
+  }
+}

@@ -617,3 +617,87 @@ textarea:focus {
 .blk.k-workout {
   border-left: 3px solid var(--routine);
 }
+
+/* ---------- 就活 ---------- */
+
+/* 事実と見立てを見た目でも分ける。同じ枠に並べると混ざって覚えてしまう */
+.split {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--surface);
+}
+.split.rating {
+  border-left-color: var(--important);
+}
+.split-head {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+.split.rating .split-head {
+  color: var(--important);
+}
+
+.tablewrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+table.compare {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+  min-width: 420px;
+}
+table.compare th,
+table.compare td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+table.compare th {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+  background: var(--surface-2);
+}
+table.compare tbody tr:last-child td {
+  border-bottom: 0;
+}
+/* 事実の列と見立ての列で色を変える */
+table.compare .fact {
+  color: var(--accent);
+}
+table.compare th.fact {
+  color: var(--accent);
+}
+table.compare .rate {
+  color: var(--important);
+}
+table.compare th.rate {
+  color: var(--important);
+}
+table.compare td:first-child {
+  color: var(--text);
+  font-weight: 600;
+  white-space: normal;
+}
+
+/* 6つに増えた下タブ */
+.app-nav {
+  grid-template-columns: repeat(6, 1fr);
+}
+.nav-label {
+  font-size: 10px;
+}

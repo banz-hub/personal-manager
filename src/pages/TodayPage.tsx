@@ -3,6 +3,13 @@ import TaskForm, { blankTask } from '../components/TaskForm'
 import { Banner, Empty, Sheet, Stat } from '../components/ui'
 import { loadKintoreDay, type KintoreDay } from '../lib/bridge/kintore'
 import { loadYoteichoDay, parseManualSlots, type YoteichoDay } from '../lib/bridge/yoteicho'
+import {
+  applyWriteBack,
+  clearPmEvents,
+  planWriteBack,
+  readYoteichoEvents,
+  type WriteBackPlan,
+} from '../lib/bridge/yoteicho-write'
 import { formatDate, formatDuration, fromMinutes, nowMinutes, todayKey, toMinutes } from '../lib/date'
 import {
   BUCKET_LABELS,
@@ -23,6 +30,7 @@ import {
   workMinutes,
   type FreeSlot,
 } from '../lib/scheduler'
+import { nextActionFor, selectionSummary } from '../lib/jobhunt'
 import { explainStudy } from '../lib/study'
 import {
   buildContextText,
@@ -36,6 +44,7 @@ import {
   AREA_LABELS,
   MASTERY_LABELS,
   MASTERY_ORDER,
+  STAGE_LABELS,
   type Mastery,
   type PlanBlock,
   type Task,
@@ -51,6 +60,8 @@ export default function TodayPage() {
   const [editing, setEditing] = useState<Task | null>(null)
   const [finishing, setFinishing] = useState<PlanBlock | null>(null)
   const [copied, setCopied] = useState(false)
+  const [writeBack, setWriteBack] = useState<WriteBackPlan | null>(null)
+  const [writeMessage, setWriteMessage] = useState('')
 
   const date = todayKey()
   const settings = data.settings
@@ -116,6 +127,8 @@ export default function TodayPage() {
         nodes: data.nodes,
         exams: data.exams,
         sessions: data.sessions,
+        companies: data.companies,
+        selections: data.selections,
         fixed: yoteicho?.items ?? [],
         slots,
         settings,
@@ -130,6 +143,8 @@ export default function TodayPage() {
       data.nodes,
       data.exams,
       data.sessions,
+      data.companies,
+      data.selections,
       yoteicho,
       kintore,
       slots,
@@ -213,6 +228,40 @@ export default function TodayPage() {
     }
   }
 
+  // 書き戻しは他アプリへの書き込みなので、必ず中身を見せてから実行する
+  const previewWriteBack = async () => {
+    if (!plan) return
+    const existing = await readYoteichoEvents()
+    if (existing === null) {
+      setWriteMessage('よてい帳のデータを読めませんでした。同じオリジンで開いているか確認してください。')
+      return
+    }
+    setWriteBack(planWriteBack(existing, plan.blocks, date))
+  }
+
+  const confirmWriteBack = async () => {
+    if (!plan) return
+    const r = await applyWriteBack(plan.blocks, date)
+    setWriteMessage(r.message)
+    setWriteBack(null)
+    // 反映後のよてい帳を読み直して画面を合わせる
+    if (r.ok && settings.useYoteicho) {
+      const d = await loadYoteichoDay(date, {
+        dayStart: settings.dayStart,
+        dayEnd: settings.dayEnd,
+        minSlotMin: settings.minSlotMin,
+        travelAllowanceMin: settings.travelAllowanceMin,
+      })
+      setYoteicho(d)
+    }
+  }
+
+  const undoWriteBack = async () => {
+    const r = await clearPmEvents()
+    setWriteMessage(r.message)
+    setWriteBack(null)
+  }
+
   const applyManual = () => {
     const parsed = parseManualSlots(manual)
     setManualSlots(parsed.length > 0 ? parsed : null)
@@ -225,6 +274,8 @@ export default function TodayPage() {
   const doneCount = workCount.filter(isBlockDone).length
   // 直前の試験があれば、いちばん上で知らせる
   const urgentExam = ctx.examPlans.find((p) => p.reviewPhase)
+  // 就活の締切は 3 日以内と期限切れだけ今日の画面に出す (先の予定まで並べると埋もれる)
+  const nearSelections = ctx.selections.filter((d) => d.urgency !== 'later')
 
   return (
     <div className="page">
@@ -364,10 +415,17 @@ export default function TodayPage() {
       <section className="bucket">
         <div className="row">
           <h2 className="section grow">今日の予定表</h2>
+          {plan && yoteicho?.available && (
+            <button type="button" className="btn sm" onClick={() => void previewWriteBack()}>
+              よてい帳へ
+            </button>
+          )}
           <button type="button" className="btn primary sm" onClick={generate}>
             {plan ? '作り直す' : '今日の予定を作る'}
           </button>
         </div>
+
+        {writeMessage && <Banner>{writeMessage}</Banner>}
 
         {!plan ? (
           <Empty>まだ作っていません。「今日の予定を作る」を押してください。</Empty>
@@ -450,6 +508,35 @@ export default function TodayPage() {
                 {s.progress.staleDays != null && <span>{s.progress.staleDays}日ぶり</span>}
               </span>
               {s.reasons.length > 0 && <span className="reason">{s.reasons.join('・')}</span>}
+            </div>
+          ))}
+        </section>
+      )}
+
+      {/* --- 就活の締切。逃すと取り返しがつかないので、近いものは今日の画面にも出す --- */}
+      {nearSelections.length > 0 && (
+        <section className="bucket">
+          <h2 className="section">就活の締切</h2>
+          {nearSelections.map((d) => (
+            <div
+              key={d.event.id}
+              className={`task ${
+                d.urgency === 'overdue'
+                  ? 'b-overdue'
+                  : d.urgency === 'today'
+                    ? 'b-urgent'
+                    : 'b-important'
+              }`}
+            >
+              <span className="task-title">{selectionSummary(d)}</span>
+              <span className="task-meta">
+                {d.company && <span className="tag">{STAGE_LABELS[d.company.stage]}</span>}
+                {d.event.place && <span>{d.event.place}</span>}
+                {d.company && <span>志望度 {'★'.repeat(d.company.interest)}</span>}
+              </span>
+              {d.company && nextActionFor(d.company) && (
+                <span className="reason">次にやること: {nextActionFor(d.company)}</span>
+              )}
             </div>
           ))}
         </section>
@@ -559,6 +646,78 @@ export default function TodayPage() {
               setEditing(null)
             }}
           />
+        </Sheet>
+      )}
+
+      {/* 他のアプリに書き込むのはここだけ。何をするかを先に全部見せてから押させる */}
+      {writeBack && (
+        <Sheet onClose={() => setWriteBack(null)}>
+          <div className="row">
+            <strong className="grow">よてい帳に反映する</strong>
+            <button type="button" className="btn ghost sm" onClick={() => setWriteBack(null)}>
+              閉じる
+            </button>
+          </div>
+
+          <Banner>
+            <strong>手で入れた予定には触れません。</strong>
+            司令塔が作った印のある予定だけを作り直します。書き込む直前にもう一度読み直して、
+            手で入れた予定が1件でも消える計算になっていれば中止します。
+          </Banner>
+
+          <div className="stats">
+            <Stat k="作る" v={`${writeBack.create.length}件`} />
+            <Stat k="差し替え" v={`${writeBack.remove.length}件`} />
+            <Stat k="触らない" v={`${writeBack.untouched}件`} />
+          </div>
+
+          {writeBack.create.length > 0 && (
+            <section className="bucket">
+              <h2 className="section">作る予定</h2>
+              <div className="timeline">
+                {writeBack.create.map((e) => (
+                  <div key={e.id} className="blk">
+                    <span className="blk-time">
+                      {e.start}–{e.end}
+                    </span>
+                    <span className="blk-title">{e.title}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {writeBack.remove.length > 0 && (
+            <section className="bucket">
+              <h2 className="section">前に作ったぶん（差し替え）</h2>
+              <div className="timeline">
+                {writeBack.remove.map((e) => (
+                  <div key={e.id} className="blk k-buffer">
+                    <span className="blk-time">
+                      {e.start}–{e.end}
+                    </span>
+                    <span className="blk-title">{e.title}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {writeBack.empty ? (
+            <Empty>反映するものがありません</Empty>
+          ) : (
+            <button type="button" className="btn primary" onClick={() => void confirmWriteBack()}>
+              よてい帳に反映する
+            </button>
+          )}
+
+          <button type="button" className="btn ghost" onClick={() => void undoWriteBack()}>
+            司令塔が作った予定をすべて取り消す
+          </button>
+          <p className="hint">
+            取り消しても、手で入れた予定は残ります。よてい帳側で司令塔の予定を直接消しても構いません
+            （次に反映したときに作り直されます）。
+          </p>
         </Sheet>
       )}
 
@@ -805,6 +964,20 @@ function Dashboard({
         : ctx.study.length > 0
           ? `候補${ctx.study.length}件（試験の登録なし）`
           : '登録なし',
+    },
+    {
+      icon: '💼',
+      label: '就活',
+      value: (() => {
+        const u = ctx.selectionsByUrgency
+        const near = [...u.overdue, ...u.today, ...u.tomorrow, ...u.soon]
+        if (ctx.selections.length === 0) return '予定なし'
+        if (near.length === 0) return `次は ${ctx.selections[0].label}（あと${ctx.selections[0].daysLeft}日）`
+        return near
+          .slice(0, 2)
+          .map((d) => `${d.label}（${d.daysLeft < 0 ? '期限切れ' : d.daysLeft === 0 ? '今日' : `あと${d.daysLeft}日`}）`)
+          .join(' / ')
+      })(),
     },
     {
       icon: '🏋️',

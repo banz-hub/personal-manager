@@ -3,7 +3,17 @@
  * 画面はこの結果を並べるだけにして、判断はすべて priority / study / scheduler に置く。
  */
 
-import type { DayPlan, Exam, Settings, StudyNode, StudySession, Task, TaskLog } from '../types'
+import type {
+  Company,
+  DayPlan,
+  Exam,
+  SelectionEvent,
+  Settings,
+  StudyNode,
+  StudySession,
+  Task,
+  TaskLog,
+} from '../types'
 import { AREA_LABELS, MASTERY_LABELS } from '../types'
 import type { KintoreDay } from './bridge/kintore'
 import type { FixedItem } from './bridge/yoteicho'
@@ -13,6 +23,13 @@ import { BUCKET_LABELS, groupByBucket, rankTasks } from './priority'
 import type { FreeSlot, Schedulable } from './scheduler'
 import { minutesOf, usableSlots } from './scheduler'
 import type { ScoredStudy } from './study'
+import {
+  groupByUrgency,
+  selectionSummary,
+  upcomingSelections,
+  type DatedSelection,
+  type Urgency,
+} from './jobhunt'
 import { buildExamPlan, rankStudy, upcomingExams, type ExamPlan } from './study'
 
 export interface TodayContext {
@@ -29,6 +46,9 @@ export interface TodayContext {
   study: ScoredStudy[]
   /** 近い順の試験の逆算 */
   examPlans: ExamPlan[]
+  /** 締切の近い順に並べた選考の予定 */
+  selections: DatedSelection[]
+  selectionsByUrgency: Record<Urgency, DatedSelection[]>
   /** 筋トレログから読んだ今日の状況 */
   workout?: KintoreDay
   /** 疲労を見て詰め込みを緩めたときの説明 */
@@ -48,6 +68,8 @@ export interface BuildInput {
   nodes: StudyNode[]
   exams: Exam[]
   sessions: StudySession[]
+  companies: Company[]
+  selections: SelectionEvent[]
   fixed: FixedItem[]
   slots: FreeSlot[]
   settings: Settings
@@ -80,6 +102,8 @@ export function buildToday(input: BuildInput): TodayContext {
     buildExamPlan(e, input.nodes, input.sessions, input.date),
   )
 
+  const selections = upcomingSelections(input.selections, input.companies, input.date)
+
   const eased = easedSettings(settings, input.workout)
 
   return {
@@ -92,6 +116,8 @@ export function buildToday(input: BuildInput): TodayContext {
     buckets: groupByBucket(ranked),
     study,
     examPlans,
+    selections,
+    selectionsByUrgency: groupByUrgency(selections),
     workout: input.workout,
     easedNote: eased.note,
     planSettings: eased.settings,
@@ -288,6 +314,17 @@ export function buildContextText(ctx: TodayContext): string {
             : '') +
           (s.progress.staleDays != null ? ` / ${s.progress.staleDays}日ぶり` : ' / 未着手') +
           (s.reasons.length ? ` / 理由: ${s.reasons.join('、')}` : ''),
+      )
+    }
+  }
+
+  if (ctx.selections.length > 0) {
+    lines.push('')
+    lines.push('## 就活の予定')
+    for (const d of ctx.selections.slice(0, 12)) {
+      lines.push(
+        `- [${d.urgency === 'overdue' ? '期限切れ' : d.urgency === 'today' ? '今日' : `あと${d.daysLeft}日`}] ${selectionSummary(d)}` +
+          (d.company ? ` / 選考段階 ${d.company.stage} / 志望度 ${d.company.interest}` : ''),
       )
     }
   }

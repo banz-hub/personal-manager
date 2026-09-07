@@ -3,11 +3,14 @@ import type {
   DailyReview,
   DayPlan,
   Exam,
+  Company,
+  SelectionEvent,
   Settings,
   StudyNode,
   StudySession,
   Task,
   TaskLog,
+  WeeklyReview,
 } from '../types'
 import { DEFAULT_SETTINGS } from '../types'
 
@@ -22,6 +25,11 @@ export interface AppData {
   nodes: StudyNode[]
   exams: Exam[]
   sessions: StudySession[]
+  // --- 就活 OS (Phase 4) ---
+  companies: Company[]
+  selections: SelectionEvent[]
+  // --- 週次レビュー (Phase 5) ---
+  weeklyReviews: WeeklyReview[]
 }
 
 export const EMPTY_DATA: AppData = {
@@ -33,6 +41,9 @@ export const EMPTY_DATA: AppData = {
   nodes: [],
   exams: [],
   sessions: [],
+  companies: [],
+  selections: [],
+  weeklyReviews: [],
 }
 
 /**
@@ -111,6 +122,9 @@ export function parseBackup(raw: unknown): AppData {
     nodes: data.nodes ?? [],
     exams: data.exams ?? [],
     sessions: data.sessions ?? [],
+    companies: data.companies ?? [],
+    selections: data.selections ?? [],
+    weeklyReviews: data.weeklyReviews ?? [],
   }
 }
 

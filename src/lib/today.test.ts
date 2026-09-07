@@ -49,6 +49,8 @@ function ctx(patch: Partial<BuildInput> = {}, settings: Partial<Settings> = {}) 
     nodes: [],
     exams: [],
     sessions: [],
+    companies: [],
+    selections: [],
     fixed: [],
     slots: [slot('18:00', '23:00')],
     settings: { ...DEFAULT_SETTINGS, ...settings },
