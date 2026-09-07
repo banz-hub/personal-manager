@@ -795,7 +795,7 @@ export default function TodayPage() {
                     : '今日は休み'}
               </span>
               <span className="task-meta">
-                {/* 筋トレログの1日の区切りは司令塔と違うことがある。どの日の話かを隠さない */}
+                {/* 筋トレログの1日の区切りはエージェントと違うことがある。どの日の話かを隠さない */}
                 {kintore.forDate !== date && (
                   <span className="tag">{kintore.forDate} ぶん</span>
                 )}
@@ -816,7 +816,7 @@ export default function TodayPage() {
                 </span>
               )}
               <span className="hint">
-                メニューと記録は筋トレログの担当です。司令塔は時間を空けるところまでしかしません。
+                メニューと記録は筋トレログの担当です。エージェントは時間を空けるところまでしかしません。
               </span>
               <a
                 className="btn sm"
@@ -910,7 +910,7 @@ export default function TodayPage() {
 
           <Banner>
             <strong>手で入れた予定には触れません。</strong>
-            司令塔が作った印のある予定だけを作り直します。書き込む直前にもう一度読み直して、
+            エージェントが作った印のある予定だけを作り直します。書き込む直前にもう一度読み直して、
             手で入れた予定が1件でも消える計算になっていれば中止します。
           </Banner>
 
@@ -961,10 +961,10 @@ export default function TodayPage() {
           )}
 
           <button type="button" className="btn ghost" onClick={() => void undoWriteBack()}>
-            司令塔が作った予定をすべて取り消す
+            エージェントが作った予定をすべて取り消す
           </button>
           <p className="hint">
-            取り消しても、手で入れた予定は残ります。よてい帳側で司令塔の予定を直接消しても構いません
+            取り消しても、手で入れた予定は残ります。よてい帳側でエージェントの予定を直接消しても構いません
             （次に反映したときに作り直されます）。
           </p>
         </Sheet>

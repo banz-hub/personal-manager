@@ -9,9 +9,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      includeAssets: ['app-icon.svg', 'apple-touch-icon.png', 'favicon-32.png'],
       manifest: {
-        name: '司令塔',
-        short_name: '司令塔',
+        name: 'エージェント',
+        short_name: 'エージェント',
         description: '今日やるべきことを締切と空き時間から判断して、実行できる予定に落とすアプリ',
         lang: 'ja',
         start_url: './',
@@ -28,6 +29,13 @@ export default defineConfig({
         orientation: 'portrait',
         background_color: '#0d1210',
         theme_color: '#0d1210',
+        icons: [
+          { src: 'pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          // Android のアイコン切り抜きに耐えるよう、絵柄は中央60%に収めてある
+          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'app-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+        ],
       },
     }),
   ],

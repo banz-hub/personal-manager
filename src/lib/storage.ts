@@ -110,7 +110,7 @@ export function buildBackup(data: AppData): BackupPayload {
 export function parseBackup(raw: unknown): AppData {
   const data = raw as Partial<BackupPayload> | null
   if (!data || data.app !== 'personal-manager' || data.version !== 1) {
-    throw new Error('司令塔のバックアップの形式ではありません')
+    throw new Error('エージェントのバックアップの形式ではありません')
   }
   return {
     settings: { ...DEFAULT_SETTINGS, ...data.settings },
@@ -131,5 +131,5 @@ export function parseBackup(raw: unknown): AppData {
 export function backupFilename(): string {
   const d = new Date()
   const p2 = (n: number) => String(n).padStart(2, '0')
-  return `shireitou-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}.json`
+  return `agent-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}.json`
 }

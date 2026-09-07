@@ -27,7 +27,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <span className="app-title">司令塔</span>
+        <span className="app-title">エージェント</span>
         <span className="app-date grow">{formatDate(todayKey())}</span>
         <button
           type="button"

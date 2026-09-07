@@ -155,7 +155,7 @@ describe('今日やる日かの判断', () => {
   })
 })
 
-describe('司令塔が使う値', () => {
+describe('エージェントが使う値', () => {
   it('見込み時間は、直近の実績の平均から出す', () => {
     const d = deriveKintoreDay({
       profile: PROFILE,
@@ -211,7 +211,7 @@ describe('1日の区切りによる日付のずれ', () => {
     expect(d.forDate).toBe('2026-09-07')
   })
 
-  it('深夜は前日ぶんとして数えるので、司令塔の今日と1日ずれる', () => {
+  it('深夜は前日ぶんとして数えるので、エージェントの今日と1日ずれる', () => {
     // 9/8 の 00:02。区切りが3時なので筋トレログの「今日」は 9/7
     const kToday = kintoreToday(new Date(2026, 8, 8, 0, 2), 3)
     expect(kToday).toBe('2026-09-07')

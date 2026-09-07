@@ -27,12 +27,12 @@ function mine(patch: Partial<YEventLike> & { id: string }): YEventLike {
   }
 }
 
-/** 司令塔が前に作った予定 */
+/** エージェントが前に作った予定 */
 function pm(patch: Partial<YEventLike> & { id: string }): YEventLike {
   return { ...mine(patch), source: 'pm', category: 'other', ...patch }
 }
 
-describe('司令塔が作ったものの見分け', () => {
+describe('エージェントが作ったものの見分け', () => {
   it('source が pm のものだけを自分のものとみなす', () => {
     expect(isPmEvent(pm({ id: 'pm_1' }))).toBe(true)
     expect(isPmEvent(mine({ id: 'e1' }))).toBe(false)
@@ -117,7 +117,7 @@ describe('検算（最後の砦）', () => {
     expect(r.message).toContain('1件')
   })
 
-  it('司令塔が作ったものは消えていても止めない', () => {
+  it('エージェントが作ったものは消えていても止めない', () => {
     const before = [mine({ id: 'e1' }), pm({ id: 'pm_a' })]
     expect(verify(before, [mine({ id: 'e1' })]).ok).toBe(true)
   })

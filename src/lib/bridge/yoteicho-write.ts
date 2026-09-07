@@ -1,7 +1,7 @@
 /**
- * 司令塔が組んだ予定を、よてい帳へ書き戻す。
+ * エージェントが組んだ予定を、よてい帳へ書き戻す。
  *
- * **これは司令塔が他のアプリに書き込む唯一の場所。**
+ * **これはエージェントが他のアプリに書き込む唯一の場所。**
  * よてい帳には手で入れた予定と、785 便の時刻表という作り直せない資産がある。
  * だから安全側の決まりを先に置き、それを破る書き込みは行わない。
  *
@@ -10,7 +10,7 @@
  *  3. 書き込むのは `events` キーだけ。時刻表・区間・授業・支出には触れない
  *  4. 書く直前にもう一度読み直す。画面を開いてから時間が経っていても、
  *     その間によてい帳側で入れた予定を消さないため
- *  5. 書く前に検算する。**司令塔以外のイベントが 1 件でも減っていたら中止する**
+ *  5. 書く前に検算する。**エージェント以外のイベントが 1 件でも減っていたら中止する**
  *
  * 5 が最後の砦で、ここを通らない書き込みは起きない。
  */
@@ -20,7 +20,7 @@ import type { PlanBlock } from '../../types'
 
 const store = createStore('yoteicho-app', 'state')
 
-/** 司令塔が作ったことを示す印。これが無いイベントには絶対に触れない */
+/** エージェントが作ったことを示す印。これが無いイベントには絶対に触れない */
 export const PM_SOURCE = 'pm'
 
 /** よてい帳のイベント。読み書きするぶんだけ */
@@ -33,7 +33,7 @@ export interface YEventLike {
   end: string
   needsTravel: boolean
   memo?: string
-  /** 司令塔が作ったイベントにだけ入る */
+  /** エージェントが作ったイベントにだけ入る */
   source?: string
   /** 元になった予定のコマ */
   pmBlockId?: string
@@ -48,7 +48,7 @@ export interface WriteBackPlan {
   date: string
   /** これから作るイベント */
   create: YEventLike[]
-  /** 司令塔が前に作ったもので、もう予定に無いので消すイベント */
+  /** エージェントが前に作ったもので、もう予定に無いので消すイベント */
   remove: YEventLike[]
   /** 手で入れたイベントなど、触らないものの数 */
   untouched: number
@@ -61,14 +61,14 @@ export function blockToEvent(block: PlanBlock, date: string): YEventLike {
   return {
     id: `pm_${block.id}`,
     title: block.title,
-    // 就活かどうかを司令塔は知っているが、細かい分類はよてい帳側の都合なので other にそろえる
+    // 就活かどうかをエージェントは知っているが、細かい分類はよてい帳側の都合なので other にそろえる
     category: 'other',
     date,
     start: block.start,
     end: block.end,
     // 場所を知らないまま移動ありにすると、よてい帳の出発時刻の計算が狂う
     needsTravel: false,
-    memo: '司令塔が作成',
+    memo: 'エージェントが作成',
     source: PM_SOURCE,
     pmBlockId: block.id,
   }
@@ -90,7 +90,7 @@ export function planWriteBack(
   const create = target.map((b) => blockToEvent(b, date))
   const wantIds = new Set(create.map((e) => e.id))
 
-  // その日の、司令塔が前に作ったイベント
+  // その日の、エージェントが前に作ったイベント
   const minePreviously = existing.filter((e) => e.date === date && isPmEvent(e))
   const remove = minePreviously.filter((e) => !wantIds.has(e.id))
 
@@ -172,7 +172,7 @@ export async function applyWriteBack(
 
 /**
  * 書く前の検算。
- * **司令塔以外のイベントが 1 件でも欠けていたら書かない。**
+ * **エージェント以外のイベントが 1 件でも欠けていたら書かない。**
  * ここを通らなければ、手で入れた予定が消えることはない。
  */
 export function verify(
@@ -199,7 +199,7 @@ export function verify(
 }
 
 /**
- * 司令塔が作ったイベントをすべて取り消す。
+ * エージェントが作ったイベントをすべて取り消す。
  * 「やっぱりカレンダーを汚したくない」と思ったときの戻し口。
  */
 export async function clearPmEvents(): Promise<WriteResult> {
@@ -229,6 +229,6 @@ export async function clearPmEvents(): Promise<WriteResult> {
     ok: true,
     created: 0,
     removed,
-    message: `司令塔が作った${removed}件を取り消しました。手で入れた予定${next.length}件はそのままです。`,
+    message: `エージェントが作った${removed}件を取り消しました。手で入れた予定${next.length}件はそのままです。`,
   }
 }

@@ -268,7 +268,7 @@ function workoutAnswer(ctx: TodayContext): Answer {
       w.planReason,
       `直近7日で${w.last7Count}回 / 週${w.daysPerWeek}回の目標・連続${w.streakDays}日` +
         (w.lastWorkoutOn ? `・最終 ${w.lastWorkoutOn}` : ''),
-      'メニューは筋トレログの担当です。司令塔は時間を空けるところまでです。',
+      'メニューは筋トレログの担当です。エージェントは時間を空けるところまでです。',
     ],
   }
 }

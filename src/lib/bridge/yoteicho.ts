@@ -204,7 +204,7 @@ function labelFor(before?: FixedItem, after?: FixedItem): string {
 /**
  * 今日の予定と空き時間を読む。
  * よてい帳が使えないときは available:false を返し、理由を添える。
- * 例外は投げない (連携が使えないだけで、司令塔は手入力で動かせるべきなので)。
+ * 例外は投げない (連携が使えないだけで、エージェントは手入力で動かせるべきなので)。
  */
 export async function loadYoteichoDay(dateKey: string, o: SlotOptions): Promise<YoteichoDay> {
   try {

@@ -290,7 +290,7 @@ export function buildPlanIcs(plan: DayPlan, date: string, beforeMin: number): st
       `DTSTART:${icsTime(at(date, b.start))}`,
       `DTEND:${icsTime(at(date, b.end))}`,
       `SUMMARY:${esc(b.title)}`,
-      `DESCRIPTION:${esc(b.reason ?? '司令塔が組んだ予定')}`,
+      `DESCRIPTION:${esc(b.reason ?? 'エージェントが組んだ予定')}`,
       'BEGIN:VALARM',
       `TRIGGER:-PT${Math.max(0, beforeMin)}M`,
       'ACTION:DISPLAY',

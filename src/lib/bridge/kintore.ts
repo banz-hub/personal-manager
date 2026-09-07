@@ -2,7 +2,7 @@
  * 筋トレログから今日のトレーニングの状況を読む (読み取り専用)。
  *
  * トレーニングの内容と実績の正本は筋トレログ。こちらは **一切書き込まない。**
- * 読むのは司令塔の判断に要ることだけで、セット数・重量・種目には触らない。
+ * 読むのはエージェントの判断に要ることだけで、セット数・重量・種目には触らない。
  *
  * よてい帳と同じく、同じオリジンに置いてあることが前提。
  */
@@ -55,7 +55,7 @@ export interface KintoreDay {
   reason?: string
   /**
    * 筋トレログ側が「今日」とみなしている日付。
-   * 1日の区切りを 3 時などにずらしていると、深夜は司令塔の今日と 1 日ずれる。
+   * 1日の区切りを 3 時などにずらしていると、深夜はエージェントの今日と 1 日ずれる。
    * どちらの日の話かを画面で示せるように、必ず返す。
    */
   forDate: string
@@ -63,7 +63,7 @@ export interface KintoreDay {
   doneToday: boolean
   /** 今日の実績時間 (分)。やっていれば入る */
   todayMinutes?: number
-  /** 今日はやる日か (筋トレログに予定表が無いので、司令塔側の推定) */
+  /** 今日はやる日か (筋トレログに予定表が無いので、エージェント側の推定) */
   plannedToday: boolean
   /** その推定の理由。推定であることが分かる言い方にする */
   planReason: string
@@ -129,7 +129,7 @@ export interface DerivedInput {
   today: string
 }
 
-/** 読み取った記録から、司令塔が使う形に落とす */
+/** 読み取った記録から、エージェントが使う形に落とす */
 export function deriveKintoreDay(input: DerivedInput): KintoreDay {
   const { profile, sessions, today } = input
   const daysPerWeek = Math.max(1, Math.min(7, profile.daysPerWeek || 3))
@@ -152,7 +152,7 @@ export function deriveKintoreDay(input: DerivedInput): KintoreDay {
   const from7 = addDays(today, -6)
   const last7Count = sessions.filter((s) => s.date >= from7 && s.date <= today).length
 
-  // 3 日続けたら一度休む、という目安。筋トレログ側に休養日の設定は無いので司令塔の判断
+  // 3 日続けたら一度休む、という目安。筋トレログ側に休養日の設定は無いのでエージェントの判断
   const restRecommended = streakDays >= 3
 
   const recent = past.slice(0, 5).map(sessionMinutes)
@@ -225,7 +225,7 @@ function decideToday(a: {
 /**
  * 筋トレログを読む。
  * 使えないときは available:false を返し、理由を添える。例外は投げない
- * (連携が使えないだけで、司令塔は動くべきなので)。
+ * (連携が使えないだけで、エージェントは動くべきなので)。
  */
 export async function loadKintoreDay(now: Date = new Date()): Promise<KintoreDay> {
   const empty: KintoreDay = {
