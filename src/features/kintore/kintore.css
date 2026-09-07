@@ -1,0 +1,1287 @@
+/*
+ * 取り込んだ画面の見た目。scope-css で .ft-kintore の中だけに効くようにしてある。
+ * 色は src/index.css の変数を使う。ここに色の値を直に書かないこと。
+ */
+
+/* ---------- レイアウト ---------- */
+.ft-kintore .page > h1 {
+  font-size: 1.35rem;
+  margin: 4px 0 8px;
+}
+.ft-kintore .page h2 {
+  font-size: 1.05rem;
+  margin: 0 0 8px;
+}
+.ft-kintore .page h3 {
+  font-size: 0.95rem;
+  margin: 16px 0 8px;
+}
+/* ---------- ナビゲーション ---------- */
+.ft-kintore .nav-item.is-active {
+  color: var(--accent);
+}
+@media (min-width: 860px) {
+  .ft-kintore .nav-item.is-active {
+    background: var(--accent-soft);
+  }
+  .ft-kintore .bodymap {
+    max-width: 250px;
+  }
+}
+/* ---------- カード・共通パーツ ---------- */
+.ft-kintore .card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin: 0 0 14px;
+  box-shadow: var(--shadow);
+}
+.ft-kintore .muted {
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+.ft-kintore .warning {
+  color: var(--warning);
+  font-size: 0.86rem;
+  background: rgba(255, 200, 96, 0.1);
+  border-left: 3px solid var(--warning);
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+.ft-kintore .tips {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 10px 0 0;
+}
+/* ---------- フォーム ---------- */
+.ft-kintore label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.ft-kintore input[type='text'],
+.ft-kintore input[type='number'],
+.ft-kintore input[type='date'],
+.ft-kintore select,
+.ft-kintore textarea {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.ft-kintore input:focus-visible,
+.ft-kintore select:focus-visible,
+.ft-kintore textarea:focus-visible,
+.ft-kintore button:focus-visible,
+.ft-kintore a:focus-visible,
+.ft-kintore .body-region:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.ft-kintore .grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0 14px;
+}
+.ft-kintore button,
+.ft-kintore .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 11px 18px;
+  font-size: 0.92rem;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ft-kintore button:hover,
+.ft-kintore .button:hover {
+  border-color: var(--muscle-hover);
+}
+.ft-kintore button.primary,
+.ft-kintore .button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.ft-kintore button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ft-kintore button.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+  padding: 6px 10px;
+  font-size: 0.82rem;
+}
+.ft-kintore button.ghost:hover {
+  color: var(--text);
+}
+.ft-kintore button.danger {
+  color: var(--danger);
+}
+.ft-kintore .form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.ft-kintore .saved-note {
+  font-size: 0.84rem;
+  color: var(--accent);
+}
+/* ---------- 統計表示 ---------- */
+.ft-kintore .stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 0;
+}
+.ft-kintore .stat {
+  flex: 1 1 90px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.ft-kintore .stat-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.ft-kintore .stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.ft-kintore .stat-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+/* ---------- 機材選択 ---------- */
+.ft-kintore .equipment-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.ft-kintore .equipment-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+}
+.ft-kintore .equipment-item.is-on {
+  border-color: var(--accent);
+}
+.ft-kintore label.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text);
+  cursor: pointer;
+}
+.ft-kintore label.checkbox input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+.ft-kintore .weights-input {
+  margin-top: 8px;
+  font-size: 0.9rem !important;
+}
+/* ---------- 人体図 ---------- */
+.ft-kintore .bodymap-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 12px 0;
+}
+.ft-kintore .bodymap {
+  flex: 1 1 0;
+  max-width: 220px;
+  text-align: center;
+}
+.ft-kintore .bodymap-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+.ft-kintore .bodymap svg {
+  width: 100%;
+  height: auto;
+}
+.ft-kintore .body-static {
+  fill: var(--muscle);
+  opacity: 0.45;
+}
+.ft-kintore .body-region {
+  fill: var(--muscle);
+  cursor: pointer;
+  transition: fill 0.15s ease;
+}
+.ft-kintore .body-region:hover {
+  fill: var(--muscle-hover);
+}
+.ft-kintore .body-region.is-selected {
+  fill: var(--accent);
+}
+.ft-kintore .preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+.ft-kintore .chip-button {
+  padding: 7px 14px;
+  font-size: 0.82rem;
+  border-radius: 999px;
+}
+.ft-kintore .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.ft-kintore .chip {
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--text);
+}
+.ft-kintore .chip.is-static {
+  cursor: default;
+}
+/* ---------- 目標選択 ---------- */
+.ft-kintore .goal-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+}
+.ft-kintore .goal-option {
+  position: relative;
+  display: block;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  cursor: pointer;
+  margin: 0;
+}
+.ft-kintore .goal-option.is-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.ft-kintore .goal-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.ft-kintore .goal-option-title {
+  display: block;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+.ft-kintore .goal-option-desc {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.ft-kintore .milestones {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: grid;
+  gap: 6px;
+}
+.ft-kintore .milestones li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+}
+.ft-kintore .milestone-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  min-width: 68px;
+}
+.ft-kintore .milestone-weight {
+  font-weight: 700;
+}
+.ft-kintore .milestone-date {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+/* ---------- メニュー・記録 ---------- */
+.ft-kintore .exercise-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  counter-reset: ex;
+}
+.ft-kintore .exercise-card h2::before {
+  counter-increment: ex;
+  content: counter(ex) '. ';
+  color: var(--accent);
+}
+.ft-kintore .exercise-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.ft-kintore .exercise-head p {
+  margin: 0;
+}
+.ft-kintore .secondary-muscles {
+  opacity: 0.75;
+}
+.ft-kintore .prescription {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 10px;
+  font-size: 0.85rem;
+}
+.ft-kintore .prescription > span {
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.ft-kintore .set-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 0.85rem;
+}
+.ft-kintore .set-table th {
+  text-align: left;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  padding-bottom: 4px;
+}
+.ft-kintore .set-table td {
+  padding: 3px 4px 3px 0;
+}
+.ft-kintore .set-table td:first-child {
+  width: 44px;
+  color: var(--text-muted);
+}
+.ft-kintore .set-table td:last-child {
+  width: 56px;
+}
+.ft-kintore .set-table input {
+  padding: 7px 8px;
+  font-size: 0.9rem;
+}
+.ft-kintore .set-table tr.is-done input {
+  opacity: 0.55;
+}
+.ft-kintore .set-done {
+  width: 100%;
+  padding: 8px 0;
+  font-size: 0.95rem;
+}
+.ft-kintore .set-done.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+/* ---------- 履歴 ---------- */
+.ft-kintore .session-list,
+.ft-kintore .recent-list,
+.ft-kintore .session-exercises {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.ft-kintore .session-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.ft-kintore .session-head h2 {
+  margin: 0;
+}
+.ft-kintore .session-head p {
+  margin: 0;
+}
+.ft-kintore .badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  font-size: 0.7rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.ft-kintore .session-exercises {
+  margin-top: 12px;
+  display: grid;
+  gap: 4px;
+}
+.ft-kintore .session-exercises li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 0.84rem;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.ft-kintore .ex-name {
+  min-width: 160px;
+  font-weight: 600;
+}
+.ft-kintore .ex-sets {
+  color: var(--text-muted);
+}
+.ft-kintore .session-note {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+}
+.ft-kintore .recent-list li {
+  display: flex;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+.ft-kintore .recent-list li:first-child {
+  border-top: none;
+}
+.ft-kintore .recent-date {
+  color: var(--text-muted);
+  min-width: 90px;
+}
+.ft-kintore .recent-body {
+  flex: 1;
+}
+/* ---------- アチーブメント ---------- */
+.ft-kintore .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.ft-kintore .celebrate {
+  border-color: var(--accent);
+  background: linear-gradient(180deg, var(--accent-soft), var(--surface) 60%);
+}
+.ft-kintore .streak-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.ft-kintore .streak-flame {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  opacity: 0.6;
+}
+.ft-kintore .streak-flame.is-on {
+  opacity: 1;
+  background: var(--accent-soft);
+}
+.ft-kintore .streak-icon {
+  font-size: 1.4rem;
+}
+.ft-kintore .streak-value {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.ft-kintore .streak-unit {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.ft-kintore .streak-side {
+  flex: 1 1 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ft-kintore .week-label {
+  font-size: 0.84rem;
+}
+.ft-kintore .week-done {
+  margin-left: 8px;
+  padding: 1px 8px;
+  font-size: 0.7rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.ft-kintore .week-bar {
+  display: block;
+  height: 8px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.ft-kintore .week-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+.ft-kintore .day-dots {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 0;
+  margin: 6px 0 0;
+}
+.ft-kintore .day-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.ft-kintore .day-dot.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.ft-kintore .day-dot.is-today {
+  outline: 2px solid var(--text-muted);
+  outline-offset: 1px;
+}
+.ft-kintore .day-dots.is-wide .day-dot {
+  width: 20px;
+  height: 20px;
+}
+/* ---------- 今日のミッション ---------- */
+.ft-kintore .mission-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.ft-kintore .mission {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.ft-kintore .mission-check {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent-text);
+}
+.ft-kintore .mission.is-done .mission-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.ft-kintore .mission-label {
+  font-size: 0.88rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.ft-kintore .mission.is-done .mission-label {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+.ft-kintore .mission-hint {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.ft-kintore .mission-complete {
+  margin: 12px 0 0;
+  font-size: 0.86rem;
+  color: var(--accent);
+}
+/* ---------- バッジ ---------- */
+.ft-kintore .badge-grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 8px;
+}
+.ft-kintore .badge-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.ft-kintore .badge-card.is-unlocked {
+  border-color: var(--accent);
+}
+.ft-kintore .badge-card.is-new {
+  animation: badge-pop 0.5s ease;
+}
+@keyframes badge-pop {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.ft-kintore .badge-icon {
+  font-size: 1.6rem;
+  line-height: 1.2;
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+.ft-kintore .badge-card.is-unlocked .badge-icon {
+  filter: none;
+  opacity: 1;
+}
+.ft-kintore .badge-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.ft-kintore .badge-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ft-kintore .badge-new {
+  padding: 0 6px;
+  font-size: 0.65rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.ft-kintore .badge-desc {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.ft-kintore .badge-progress {
+  display: block;
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.ft-kintore .badge-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.ft-kintore .badge-count {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+/* ---------- 実績ページのカレンダー ---------- */
+.ft-kintore .calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+  margin-top: 10px;
+  max-width: 320px;
+}
+.ft-kintore .calendar-head {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+.ft-kintore .calendar-day {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.ft-kintore .calendar-day.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: 700;
+}
+.ft-kintore .calendar-day.is-today {
+  outline: 2px solid var(--text-muted);
+  outline-offset: 1px;
+}
+.ft-kintore .calendar-day.is-future {
+  opacity: 0.35;
+}
+.ft-kintore .day-dots-caption {
+  display: block;
+  margin-top: 12px;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+.ft-kintore .mission.is-done .mission-hint {
+  text-decoration: none;
+}
+/* ---------- セクション内タブ / セグメント ---------- */
+.ft-kintore .section-tabs,
+.ft-kintore .segmented {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 0 0 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+.ft-kintore .section-tab,
+.ft-kintore .segmented button {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+.ft-kintore .section-tab.is-active,
+.ft-kintore .segmented button.is-on {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+/* ---------- 体重の記録 ---------- */
+.ft-kintore .weight-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.ft-kintore .weight-form input {
+  flex: 1;
+  min-width: 0;
+}
+/* ---------- 前回の記録・漸進性過負荷 ---------- */
+.ft-kintore .last-performance,
+.ft-kintore .progression-note,
+.ft-kintore .pr-note {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+}
+.ft-kintore .last-performance {
+  color: var(--text-muted);
+}
+.ft-kintore .last-label {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 0.74rem;
+}
+.ft-kintore .progression-note {
+  color: var(--accent);
+}
+.ft-kintore .pr-note {
+  color: var(--accent);
+  font-weight: 700;
+}
+/* ---------- 休憩タイマー ---------- */
+.ft-kintore .rest-timer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(64px + env(safe-area-inset-bottom));
+  z-index: 30;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
+}
+@media (min-width: 860px) {
+  .ft-kintore .rest-timer {
+    bottom: 0;
+  }
+}
+.ft-kintore .rest-progress {
+  display: block;
+  height: 4px;
+  background: var(--surface-2);
+}
+.ft-kintore .rest-progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.25s linear;
+}
+.ft-kintore .rest-body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  max-width: 880px;
+  margin: 0 auto;
+}
+.ft-kintore .rest-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.ft-kintore .rest-time {
+  flex: 1;
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.ft-kintore .rest-timer.is-done .rest-time {
+  color: var(--accent);
+}
+.ft-kintore .rest-body button {
+  padding: 8px 14px;
+  font-size: 0.84rem;
+}
+/* ---------- グラフ ---------- */
+.ft-kintore .chart {
+  margin: 0;
+}
+.ft-kintore .chart-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.ft-kintore .chart-caption {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.ft-kintore .chart-plot {
+  position: relative;
+  touch-action: pan-y;
+}
+.ft-kintore .chart-plot svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+.ft-kintore .chart-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.ft-kintore .chart-axis {
+  fill: var(--text-muted);
+  font-size: 11px;
+}
+.ft-kintore .chart-value {
+  fill: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+}
+.ft-kintore .chart-line {
+  fill: none;
+  stroke: var(--chart-mark);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.ft-kintore .chart-dot {
+  fill: var(--chart-mark);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+.ft-kintore .chart-dot.is-active {
+  stroke-width: 2;
+}
+.ft-kintore .chart-crosshair {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.ft-kintore .chart-reference {
+  stroke: var(--text-muted);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+}
+.ft-kintore .chart-bar {
+  fill: var(--chart-mark);
+}
+.ft-kintore .chart-bar.is-active {
+  fill: var(--text);
+}
+.ft-kintore .chart-hit {
+  fill: transparent;
+}
+.ft-kintore .chart-tooltip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+}
+.ft-kintore .chart-tooltip-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.ft-kintore .chart-tooltip-value {
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+.ft-kintore .chart-table {
+  margin-top: 10px;
+  font-size: 0.8rem;
+}
+.ft-kintore .chart-table summary {
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.ft-kintore .chart-table table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+.ft-kintore .chart-table th,
+.ft-kintore .chart-table td {
+  text-align: left;
+  padding: 4px 8px 4px 0;
+  border-bottom: 1px solid var(--border);
+  font-weight: 400;
+}
+.ft-kintore .chart-table thead th {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+/* ---------- 横棒（部位別） ---------- */
+.ft-kintore .hbar-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: grid;
+  gap: 5px;
+}
+.ft-kintore .hbar-row {
+  display: grid;
+  grid-template-columns: 7.5em 1fr 3em;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+.ft-kintore .hbar-label {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ft-kintore .hbar-track {
+  height: 14px;
+  background: var(--surface-2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.ft-kintore .hbar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--chart-mark);
+  min-width: 2px;
+}
+.ft-kintore .hbar-fill.is-empty {
+  background: var(--border);
+}
+.ft-kintore .hbar-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+/* ---------- 目標の見直し ---------- */
+.ft-kintore .suggestion-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: grid;
+  gap: 10px;
+}
+.ft-kintore .suggestion {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border-left: 3px solid var(--accent);
+}
+.ft-kintore .suggestion h3 {
+  margin: 0 0 4px;
+  font-size: 0.92rem;
+}
+.ft-kintore .suggestion p {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+.ft-kintore .applied-list {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  display: grid;
+  gap: 4px;
+  font-size: 0.84rem;
+  color: var(--accent);
+}
+/* 休憩タイマーの分だけ下に余白を足し、最後の種目が隠れないようにする */
+.ft-kintore .page.has-rest-timer {
+  padding-bottom: 72px;
+}
+/* 日付を値に持つ統計タイルは折り返さない */
+.ft-kintore .stat-value.is-date {
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+/* ---------- 種目の管理 ---------- */
+.ft-kintore fieldset.picker {
+  border: none;
+  padding: 0;
+  margin: 0 0 12px;
+}
+.ft-kintore fieldset.picker legend {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  padding: 0 0 4px;
+}
+.ft-kintore .chip-button.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.ft-kintore .check-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.ft-kintore .exercise-manage-list {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  display: grid;
+  gap: 2px;
+}
+.ft-kintore .exercise-manage-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.ft-kintore .exercise-manage-list li.is-hidden .manage-name {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+.ft-kintore .manage-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ft-kintore .manage-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.ft-kintore .manage-main .muted {
+  font-size: 0.76rem;
+}
+.ft-kintore .manage-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.ft-kintore .add-exercise .weight-form select {
+  flex: 1;
+  min-width: 0;
+}
+/* ---------- 記録の編集 ---------- */
+.ft-kintore .edit-area {
+  margin-top: 12px;
+}
+.ft-kintore .edit-exercise {
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.ft-kintore .edit-exercise-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+/* ---------- トレーニングの自動評価 ---------- */
+.ft-kintore .evaluation-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.ft-kintore .grade {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  font-size: 1.8rem;
+  font-weight: 800;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.ft-kintore .grade-S,
+.ft-kintore .grade-A {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.ft-kintore .grade-B {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.ft-kintore .evaluation-score {
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+.ft-kintore .evaluation-score-max {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.ft-kintore .evaluation-headline {
+  margin: 2px 0 0;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+.ft-kintore .factor-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+.ft-kintore .factor-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+.ft-kintore .factor-label {
+  font-weight: 600;
+  min-width: 8em;
+}
+.ft-kintore .factor-value {
+  flex: 1;
+  color: var(--text-muted);
+}
+.ft-kintore .factor-points {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+.ft-kintore .factor-bar {
+  display: block;
+  height: 6px;
+  margin: 4px 0 2px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.ft-kintore .factor-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.ft-kintore .factor-note {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+.ft-kintore .advice-list {
+  margin: 14px 0 0;
+  padding-left: 1.1em;
+  display: grid;
+  gap: 6px;
+  font-size: 0.84rem;
+}
+.ft-kintore .note-list {
+  margin: 8px 0 0;
+  padding-left: 1.1em;
+  display: grid;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+/* 記録日の切り替えボタン */
+.ft-kintore .date-quick {
+  margin-top: -4px;
+  margin-bottom: 10px;
+}
+.ft-kintore .date-quick button {
+  font-size: 0.8rem;
+  padding: 8px 12px;
+}

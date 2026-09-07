@@ -1,0 +1,78 @@
+/**
+ * 筋トレログ (メニュー・記録・実績・目標)。
+ *
+ * 経路は `/kintore` の下にまとめてある。画面の中のリンクも同じ前置き付き。
+ * 見た目は `kintore.css` に閉じ込め、`.ft-kintore` の中だけで効く。
+ *
+ * データは `kintore-app` の IndexedDB をそのまま使う。移し替えていないので、
+ * 筋トレログで書き出した JSON がそのまま読める。トレーニングの正はここ。
+ * エージェント本体は `lib/bridge/kintore.ts` から読むだけで、書かない。
+ */
+
+import { useEffect, type ReactNode } from 'react'
+import type { Feature } from '../../app/types'
+import { loadReminder, scheduleWhileOpen, showReminderNow } from './lib/reminders'
+import AchievementsPage from './pages/AchievementsPage'
+import ExercisesPage from './pages/ExercisesPage'
+import GoalPage from './pages/GoalPage'
+import HistoryPage from './pages/HistoryPage'
+import HomePage from './pages/HomePage'
+import ProfilePage from './pages/ProfilePage'
+import StatsPage from './pages/StatsPage'
+import WorkoutPage from './pages/WorkoutPage'
+import { AppProvider, useApp } from './state/AppContext'
+import './kintore.css'
+
+/**
+ * 読み込み待ちと見た目の囲い。
+ * 通知の予約もここでする。もとは App.tsx にあったが、
+ * 外枠に 1 つの機能の都合を持ち込まないためにこちらへ移した。
+ */
+function Gate({ children }: { children: ReactNode }) {
+  const { ready } = useApp()
+
+  // アプリを開いている間は、予定時刻ちょうどに通知を出す
+  useEffect(() => scheduleWhileOpen(loadReminder(), () => void showReminderNow()), [])
+
+  return (
+    <div className="ft-kintore">
+      {ready ? (
+        children
+      ) : (
+        <div className="page">
+          <p className="muted">読み込み中…</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const page = (element: ReactNode) => <Gate>{element}</Gate>
+
+export const kintore: Feature = {
+  id: 'kintore',
+  label: '筋トレログ',
+  nav: [
+    {
+      to: '/kintore',
+      label: '筋トレ',
+      icon: '🏋️',
+      primary: true,
+      match: ['/kintore/workout'],
+    },
+    { to: '/kintore/history', label: '筋トレの記録', icon: '📋', match: ['/kintore/stats', '/kintore/achievements'] },
+    { to: '/kintore/goal', label: '筋トレの目標', icon: '🏁' },
+    { to: '/kintore/profile', label: '筋トレの設定', icon: '🛠️', match: ['/kintore/exercises'] },
+  ],
+  Provider: AppProvider,
+  routes: [
+    { path: '/kintore', element: page(<HomePage />) },
+    { path: '/kintore/workout', element: page(<WorkoutPage />) },
+    { path: '/kintore/history', element: page(<HistoryPage />) },
+    { path: '/kintore/stats', element: page(<StatsPage />) },
+    { path: '/kintore/achievements', element: page(<AchievementsPage />) },
+    { path: '/kintore/goal', element: page(<GoalPage />) },
+    { path: '/kintore/profile', element: page(<ProfilePage />) },
+    { path: '/kintore/exercises', element: page(<ExercisesPage />) },
+  ],
+}
