@@ -17,6 +17,17 @@ export interface NavEntry {
   to: string
   label: string
   icon: string
+  /**
+   * このタブを選んだ状態にする、ほかの経路。
+   * タブの下にさらに画面が分かれているとき、そこに居ても親のタブを光らせる。
+   */
+  match?: string[]
+  /**
+   * 下のタブに直に出すもの。**全部で 4 つまで。**
+   * それ以外は「もっと」の中に一覧で出る。指を置ける幅を確保するため、
+   * 増えたぶんを機械的に狭くするのではなく、出す数の方を止める。
+   */
+  primary?: boolean
 }
 
 export interface FeatureRoute {
@@ -28,6 +39,8 @@ export interface FeatureRoute {
 export interface Feature {
   /** フォルダ名と揃える */
   id: string
+  /** 「もっと」で見出しに使う、この機能の呼び名 */
+  label: string
   /**
    * 下タブに出す入口。1 つの機能がいくつ持ってもよいし、0 でもよい。
    * 並ぶ順は `features.ts` の並び順そのまま。

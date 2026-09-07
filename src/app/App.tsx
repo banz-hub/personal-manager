@@ -6,14 +6,29 @@
 import { useState } from 'react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { FEATURES } from './features'
+import MorePage from './MorePage'
+import type { NavEntry } from './types'
 import SearchSheet from '../features/shirei/components/SearchSheet'
 import { formatDate, todayKey } from '../features/shirei/lib/date'
 
-const NAV = FEATURES.flatMap((f) => f.nav)
+const ALL_NAV = FEATURES.flatMap((f) => f.nav)
 const ROUTES = FEATURES.flatMap((f) => f.routes)
+
+const MORE: NavEntry = { to: '/more', label: 'もっと', icon: '⋯' }
+
+/** 下のタブに出すもの。入りきらないぶんは「もっと」にまとめる */
+const NAV: NavEntry[] = [...ALL_NAV.filter((n) => n.primary), MORE]
 
 /** 最初の機能の最初の経路を、行き先が無いときの受け皿にする */
 const FALLBACK = ROUTES[0]?.element ?? null
+
+/** 「もっと」の中の画面に居るときは「もっと」を光らせる */
+const IN_MORE = new Set(ALL_NAV.filter((n) => !n.primary).flatMap((n) => [n.to, ...(n.match ?? [])]))
+
+function isActive(item: NavEntry, pathname: string): boolean {
+  if (item === MORE) return pathname === '/more' || IN_MORE.has(pathname)
+  return pathname === item.to || (item.match?.includes(pathname) ?? false)
+}
 
 export default function App() {
   const { pathname } = useLocation()
@@ -41,6 +56,7 @@ export default function App() {
           {ROUTES.map((r) => (
             <Route key={r.path} path={r.path} element={r.element} />
           ))}
+          <Route path="/more" element={<MorePage />} />
           <Route path="*" element={FALLBACK} />
         </Routes>
       </main>
@@ -50,7 +66,7 @@ export default function App() {
           <NavLink
             key={item.to}
             to={item.to}
-            className={`nav-item${pathname === item.to ? ' is-active' : ''}`}
+            className={`nav-item${isActive(item, pathname) ? ' is-active' : ''}`}
           >
             <span className="nav-icon" aria-hidden>
               {item.icon}

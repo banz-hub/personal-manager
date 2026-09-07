@@ -7,5 +7,6 @@
 
 import type { Feature } from './types'
 import { shirei } from '../features/shirei'
+import { yotei } from '../features/yotei'
 
-export const FEATURES: Feature[] = [shirei]
+export const FEATURES: Feature[] = [shirei, yotei]

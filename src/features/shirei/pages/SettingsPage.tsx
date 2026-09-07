@@ -203,22 +203,16 @@ export default function SettingsPage() {
       </section>
 
       {/*
-        ホーム画面に追加したときは、ここから他の 2 つへ移る。
-        別のアプリとして追加すると iPhone ではデータの置き場が分かれて連携が切れるので、
-        追加するのはエージェントだけにして、行き来はこのリンクでする。
+        よてい帳はこのアプリの中に入ったので、外へのリンクは要らなくなった。
+        筋トレログはまだ別アプリなので、行き来はここから。
       */}
       <section className="bucket">
-        <h2 className="section">ほかのアプリを開く</h2>
-        <div className="row">
-          <a className="btn" href="../yoteicho-app/" style={{ textDecoration: 'none', textAlign: 'center' }}>
-            よてい帳
-          </a>
-          <a className="btn" href="../kintore-app/" style={{ textDecoration: 'none', textAlign: 'center' }}>
-            筋トレログ
-          </a>
-        </div>
+        <h2 className="section">筋トレログを開く</h2>
+        <a className="btn" href="../kintore-app/" style={{ textDecoration: 'none', textAlign: 'center' }}>
+          筋トレログ
+        </a>
         <p className="hint">
-          ホーム画面に追加するのはエージェントだけにしてください。3 つを別々に追加すると、iPhone では
+          ホーム画面に追加するのはエージェントだけにしてください。別々に追加すると、iPhone では
           それぞれ別のデータの置き場を持つことになり、連携が切れます。ここから開けば同じ場所のままです。
         </p>
       </section>

@@ -36,10 +36,11 @@ const page = (element: ReactNode) => <Gate>{element}</Gate>
 
 export const shirei: Feature = {
   id: 'shirei',
+  label: 'エージェント',
   nav: [
-    { to: '/', label: '今日', icon: '🎯' },
+    { to: '/', label: '今日', icon: '🎯', primary: true },
     { to: '/tasks', label: 'タスク', icon: '📋' },
-    { to: '/study', label: '学習', icon: '📚' },
+    { to: '/study', label: '学習', icon: '📚', primary: true },
     { to: '/job', label: '就活', icon: '💼' },
     { to: '/review', label: 'ふりかえり', icon: '🌙' },
     { to: '/settings', label: '設定', icon: '⚙️' },
