@@ -1,0 +1,22 @@
+node_modules
+dist
+dev-dist
+*.local
+.DS_Store
+
+# Claude Code のローカル設定
+.claude/
+
+# 個人の実データ。自宅最寄り駅・大学・バイト先が入っているのでコミットしない。
+# バックアップは private リポジトリ yoteicho-data のほうで管理する。
+yoteicho-初期データ.json
+*-初期データ.json
+yoteicho-*.json
+
+# Claude Code のローカル設定
+.claude/
+
+# 個人の実データ。就活の企業名や志望度が入るのでコミットしない。
+# バックアップは private リポジトリ yoteicho-data のほうで管理する。
+shireitou-*.json
+*-初期データ.json
