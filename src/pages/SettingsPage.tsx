@@ -202,6 +202,27 @@ export default function SettingsPage() {
         </p>
       </section>
 
+      {/*
+        ホーム画面に追加したときは、ここから他の 2 つへ移る。
+        別のアプリとして追加すると iPhone ではデータの置き場が分かれて連携が切れるので、
+        追加するのは司令塔だけにして、行き来はこのリンクでする。
+      */}
+      <section className="bucket">
+        <h2 className="section">ほかのアプリを開く</h2>
+        <div className="row">
+          <a className="btn" href="../yoteicho-app/" style={{ textDecoration: 'none', textAlign: 'center' }}>
+            よてい帳
+          </a>
+          <a className="btn" href="../kintore-app/" style={{ textDecoration: 'none', textAlign: 'center' }}>
+            筋トレログ
+          </a>
+        </div>
+        <p className="hint">
+          ホーム画面に追加するのは司令塔だけにしてください。3 つを別々に追加すると、iPhone では
+          それぞれ別のデータの置き場を持つことになり、連携が切れます。ここから開けば同じ場所のままです。
+        </p>
+      </section>
+
       <section className="bucket">
         <h2 className="section">よてい帳との連携</h2>
         <label className="row tight">

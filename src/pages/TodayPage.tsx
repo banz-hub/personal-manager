@@ -621,8 +621,6 @@ export default function TodayPage() {
                     <a
                       className="btn sm"
                       href="../kintore-app/"
-                      target="_blank"
-                      rel="noopener"
                       style={{ textDecoration: 'none' }}
                     >
                       開く
@@ -823,8 +821,6 @@ export default function TodayPage() {
               <a
                 className="btn sm"
                 href="../kintore-app/"
-                target="_blank"
-                rel="noopener"
                 style={{ textDecoration: 'none', textAlign: 'center' }}
               >
                 筋トレログを開く

@@ -15,7 +15,15 @@ export default defineConfig({
         description: '今日やるべきことを締切と空き時間から判断して、実行できる予定に落とすアプリ',
         lang: 'ja',
         start_url: './',
-        scope: './',
+        /**
+         * オリジン全体を範囲にする。
+         *
+         * `./` だと範囲が `/personal-manager/` だけになり、ホーム画面に追加したあと
+         * よてい帳・筋トレログへ移動した瞬間にアプリの外 (Safari) へ放り出される。
+         * iPhone ではホーム画面のアプリと Safari でデータの置き場が別なので、
+         * そこで連携が切れる。3 つとも範囲に入れて 1 つのアプリの中で完結させる。
+         */
+        scope: '/',
         display: 'standalone',
         orientation: 'portrait',
         background_color: '#0d1210',
