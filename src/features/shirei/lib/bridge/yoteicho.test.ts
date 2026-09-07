@@ -92,6 +92,21 @@ describe('予定の読み取り', () => {
     expect(out[0].title).toBe('バイト')
     expect(out[0].placeName).toBe('明光義塾 ひたち野うしく西口駅前教室')
   })
+
+  it('時刻の無い予定は飛ばす。1 件のせいでその日ぶんが止まらないように', () => {
+    const broken = { id: 'x', title: '時刻なし', category: 'other', date: '2026-09-08' }
+    const ok = {
+      id: 'e1',
+      title: '面接',
+      category: 'other',
+      date: '2026-09-08',
+      start: '13:00',
+      end: '14:00',
+      needsTravel: false,
+    }
+    const out = eventsOn('2026-09-08', [broken, ok] as never, PLACES)
+    expect(out.map((e) => e.title)).toEqual(['面接'])
+  })
 })
 
 describe('空き時間の切り出し', () => {

@@ -5,14 +5,15 @@
  * 画面を 1 つ足すときは pages にファイルを作り、`routes` に 1 行足す。
  */
 
-import type { ReactNode } from 'react'
+import { lazy, type ReactNode } from 'react'
 import type { Feature } from '../../app/types'
-import JobPage from './pages/JobPage'
-import ReviewPage from './pages/ReviewPage'
-import SettingsPage from './pages/SettingsPage'
-import StudyPage from './pages/StudyPage'
-import TasksPage from './pages/TasksPage'
-import TodayPage from './pages/TodayPage'
+const JobPage = lazy(() => import('./pages/JobPage'))
+const ReviewPage = lazy(() => import('./pages/ReviewPage'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const StudyPage = lazy(() => import('./pages/StudyPage'))
+const TasksPage = lazy(() => import('./pages/TasksPage'))
+const TodayPage = lazy(() => import('./pages/TodayPage'))
+import { buildBackup, parseBackup, repository, restoreAll } from './lib/storage'
 import { AppProvider, useApp } from './state/AppContext'
 
 /**
@@ -46,6 +47,11 @@ export const shirei: Feature = {
     { to: '/settings', label: '設定', icon: '⚙️' },
   ],
   Provider: AppProvider,
+  backup: {
+    key: 'shirei',
+    export: async () => buildBackup(await repository.loadAll()),
+    import: async (raw) => restoreAll(parseBackup(raw)),
+  },
   routes: [
     { path: '/', element: page(<TodayPage />) },
     { path: '/tasks', element: page(<TasksPage />) },

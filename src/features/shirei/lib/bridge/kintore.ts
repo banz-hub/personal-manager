@@ -7,7 +7,8 @@
  * よてい帳と同じく、同じオリジンに置いてあることが前提。
  */
 
-import { createStore, get } from 'idb-keyval'
+import { get } from 'idb-keyval'
+import { kintoreStore as store } from '../../../kintore/bridge'
 import { addDays, dateKey, daysBetween } from '../date'
 
 /** 筋トレログのデータのうち、こちらが読む部分だけの型 */
@@ -85,7 +86,6 @@ export interface KintoreDay {
   daysPerWeek: number
 }
 
-const store = createStore('kintore-app', 'state')
 
 /**
  * 1 回ぶんの時間。記録の時刻が当てにならないときは、セット数から見積もる。

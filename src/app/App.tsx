@@ -3,7 +3,7 @@
  * ここに機能ごとの条件分岐を書き始めたら、それは Feature 側に置く合図。
  */
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { FEATURES } from './features'
 import MorePage from './MorePage'
@@ -51,14 +51,26 @@ export default function App() {
 
       {searching && <SearchSheet onClose={() => setSearching(false)} />}
 
+      {/*
+        画面ごとに分けて読むので、まだ届いていない間はここで待つ。
+        機能が増えても最初に落とすぶんが増えないようにするため。
+      */}
       <main className="app-main">
-        <Routes>
-          {ROUTES.map((r) => (
-            <Route key={r.path} path={r.path} element={r.element} />
-          ))}
-          <Route path="/more" element={<MorePage />} />
-          <Route path="*" element={FALLBACK} />
-        </Routes>
+        <Suspense
+          fallback={
+            <div className="page">
+              <p className="muted">読み込み中…</p>
+            </div>
+          }
+        >
+          <Routes>
+            {ROUTES.map((r) => (
+              <Route key={r.path} path={r.path} element={r.element} />
+            ))}
+            <Route path="/more" element={<MorePage />} />
+            <Route path="*" element={FALLBACK} />
+          </Routes>
+        </Suspense>
       </main>
 
       <nav className="app-nav">

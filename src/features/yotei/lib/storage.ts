@@ -1,4 +1,5 @@
-import { clear, createStore, get, set } from 'idb-keyval'
+import { clear, get, set } from 'idb-keyval'
+import { yoteiStore } from '../bridge'
 import type {
   Course,
   EventItem,
@@ -60,7 +61,8 @@ export interface Repository {
   clearAll(): Promise<void>
 }
 
-const store = createStore('yoteicho-app', 'state')
+/** 置き場の名前はここでは決めない。ほかの機能からも同じものを使うため */
+const store = yoteiStore
 
 const KEYS = Object.keys(EMPTY_DATA) as Array<keyof AppData>
 
@@ -137,4 +139,14 @@ export function backupFilename(): string {
   const d = new Date()
   const p2 = (n: number) => String(n).padStart(2, '0')
   return `yoteicho-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}.json`
+}
+
+/**
+ * 読み込んだものを置き場へ書く。まるごと上書き。
+ * まとめて読み込むときの窓口 (src/app/backup.ts) から呼ぶ。
+ */
+export async function restoreAll(data: AppData): Promise<void> {
+  for (const key of KEYS) {
+    await repository.save(key, data[key])
+  }
 }

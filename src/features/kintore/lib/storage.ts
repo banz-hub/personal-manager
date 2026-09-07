@@ -1,4 +1,5 @@
-import { createStore, del, get, set } from 'idb-keyval'
+import { del, get, set } from 'idb-keyval'
+import { kintoreStore } from '../bridge'
 import type { BodyWeightEntry, Exercise, Goal, Profile, WorkoutSession } from '../types'
 
 /**
@@ -26,7 +27,8 @@ const KEY_SESSIONS = 'sessions'
 const KEY_WEIGHTS = 'weights'
 const KEY_CUSTOM_EXERCISES = 'customExercises'
 
-const store = createStore('kintore-app', 'state')
+/** 置き場の名前はここでは決めない。ほかの機能からも同じものを使うため */
+const store = kintoreStore
 
 class IndexedDbRepository implements Repository {
   async loadProfile() {

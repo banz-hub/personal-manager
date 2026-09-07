@@ -9,17 +9,18 @@
  * エージェント本体は `lib/bridge/kintore.ts` から読むだけで、書かない。
  */
 
-import { useEffect, type ReactNode } from 'react'
+import { lazy, useEffect, type ReactNode } from 'react'
 import type { Feature } from '../../app/types'
 import { loadReminder, scheduleWhileOpen, showReminderNow } from './lib/reminders'
-import AchievementsPage from './pages/AchievementsPage'
-import ExercisesPage from './pages/ExercisesPage'
-import GoalPage from './pages/GoalPage'
-import HistoryPage from './pages/HistoryPage'
-import HomePage from './pages/HomePage'
-import ProfilePage from './pages/ProfilePage'
-import StatsPage from './pages/StatsPage'
-import WorkoutPage from './pages/WorkoutPage'
+const AchievementsPage = lazy(() => import('./pages/AchievementsPage'))
+const ExercisesPage = lazy(() => import('./pages/ExercisesPage'))
+const GoalPage = lazy(() => import('./pages/GoalPage'))
+const HistoryPage = lazy(() => import('./pages/HistoryPage'))
+const HomePage = lazy(() => import('./pages/HomePage'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const StatsPage = lazy(() => import('./pages/StatsPage'))
+const WorkoutPage = lazy(() => import('./pages/WorkoutPage'))
+import { exportBackup, importBackup } from './lib/storage'
 import { AppProvider, useApp } from './state/AppContext'
 import './kintore.css'
 
@@ -65,6 +66,11 @@ export const kintore: Feature = {
     { to: '/kintore/profile', label: '筋トレの設定', icon: '🛠️', match: ['/kintore/exercises'] },
   ],
   Provider: AppProvider,
+  backup: {
+    key: 'kintore',
+    export: () => exportBackup(),
+    import: (raw) => importBackup(raw),
+  },
   routes: [
     { path: '/kintore', element: page(<HomePage />) },
     { path: '/kintore/workout', element: page(<WorkoutPage />) },

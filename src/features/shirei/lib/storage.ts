@@ -133,3 +133,13 @@ export function backupFilename(): string {
   const p2 = (n: number) => String(n).padStart(2, '0')
   return `agent-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}.json`
 }
+
+/**
+ * 読み込んだものを置き場へ書く。まるごと上書き。
+ * まとめて読み込むときの窓口 (src/app/backup.ts) から呼ぶ。
+ */
+export async function restoreAll(data: AppData): Promise<void> {
+  for (const key of KEYS) {
+    await repository.save(key, data[key])
+  }
+}

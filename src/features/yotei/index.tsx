@@ -11,22 +11,23 @@
  * よてい帳で書き出した JSON がそのまま読める。カレンダーの正はここ。
  */
 
-import type { ReactNode } from 'react'
+import { lazy, type ReactNode } from 'react'
 import type { Feature } from '../../app/types'
-import BulkRoutesPage from './pages/BulkRoutesPage'
-import CalendarPage from './pages/CalendarPage'
-import JobsPage from './pages/JobsPage'
-import MoneyPage from './pages/MoneyPage'
-import PassesPage from './pages/PassesPage'
-import PayPage from './pages/PayPage'
-import RoutesPage from './pages/RoutesPage'
-import SettingsPage from './pages/SettingsPage'
-import TimetablePage from './pages/TimetablePage'
-import TodayPage from './pages/TodayPage'
-import TodosPage from './pages/TodosPage'
-import TrainsPage from './pages/TrainsPage'
-import TravelPage from './pages/TravelPage'
-import TripsPage from './pages/TripsPage'
+const BulkRoutesPage = lazy(() => import('./pages/BulkRoutesPage'))
+const CalendarPage = lazy(() => import('./pages/CalendarPage'))
+const JobsPage = lazy(() => import('./pages/JobsPage'))
+const MoneyPage = lazy(() => import('./pages/MoneyPage'))
+const PassesPage = lazy(() => import('./pages/PassesPage'))
+const PayPage = lazy(() => import('./pages/PayPage'))
+const RoutesPage = lazy(() => import('./pages/RoutesPage'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const TimetablePage = lazy(() => import('./pages/TimetablePage'))
+const TodayPage = lazy(() => import('./pages/TodayPage'))
+const TodosPage = lazy(() => import('./pages/TodosPage'))
+const TrainsPage = lazy(() => import('./pages/TrainsPage'))
+const TravelPage = lazy(() => import('./pages/TravelPage'))
+const TripsPage = lazy(() => import('./pages/TripsPage'))
+import { buildBackup, parseBackup, repository, restoreAll } from './lib/storage'
 import { AppProvider, useApp } from './state/AppContext'
 import './yotei.css'
 
@@ -65,6 +66,11 @@ export const yotei: Feature = {
     { to: '/yotei/settings', label: '予定の設定', icon: '🛠️' },
   ],
   Provider: AppProvider,
+  backup: {
+    key: 'yotei',
+    export: async () => buildBackup(await repository.loadAll()),
+    import: async (raw) => restoreAll(parseBackup(raw)),
+  },
   routes: [
     { path: '/yotei', element: page(<TodayPage />) },
     { path: '/yotei/todos', element: page(<TodosPage />) },

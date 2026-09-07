@@ -13,7 +13,8 @@
  * 別リポジトリなので共有できず、写している。**よてい帳側を直したらここも見直すこと。**
  */
 
-import { createStore, get } from 'idb-keyval'
+import { get } from 'idb-keyval'
+import { yoteiStore as store } from '../../../yotei/bridge'
 import { fromMinutes, parseDate, toMinutes } from '../date'
 import type { FreeSlot } from '../scheduler'
 
@@ -85,7 +86,6 @@ export interface YoteichoDay {
   reason?: string
 }
 
-const store = createStore('yoteicho-app', 'state')
 
 async function read<T>(key: string): Promise<T | undefined> {
   return get<T>(key, store)
@@ -121,10 +121,17 @@ export function coursesOn(
   return out
 }
 
-/** その日の単発の予定 */
+/**
+ * その日の単発の予定。
+ *
+ * 時刻の入っていない予定は飛ばす。1 件おかしいだけで
+ * その日のよてい帳の連携がまるごと止まるのを防ぐため
+ * (時刻が無いと空き時間を計算できないので、拾っても使えない)。
+ */
 export function eventsOn(dateKey: string, events: YEvent[], places: YPlace[]): FixedItem[] {
   return events
     .filter((e) => e.date === dateKey)
+    .filter((e) => typeof e.start === 'string' && typeof e.end === 'string')
     .map((e) => {
       const place = places.find((p) => p.id === e.placeId)
       return {

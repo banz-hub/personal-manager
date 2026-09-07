@@ -15,10 +15,10 @@
  * 5 が最後の砦で、ここを通らない書き込みは起きない。
  */
 
-import { createStore, get, set } from 'idb-keyval'
+import { get, set } from 'idb-keyval'
+import { yoteiStore as store } from '../../../yotei/bridge'
 import type { PlanBlock } from '../../types'
 
-const store = createStore('yoteicho-app', 'state')
 
 /** エージェントが作ったことを示す印。これが無いイベントには絶対に触れない */
 export const PM_SOURCE = 'pm'

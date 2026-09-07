@@ -53,4 +53,18 @@ export interface Feature {
    * ここで待たせると、他の機能の画面まで一緒に止まってしまう。
    */
   Provider?: ComponentType<{ children: ReactNode }>
+  /**
+   * まとめて書き出す・読み込むときの窓口。
+   * ここを持っている機能は、それだけで「まとめて書き出す」の対象に入る。
+   * 機能を足したときに、書き出しの対象から漏れるのを防ぐため。
+   */
+  backup?: FeatureBackup
+}
+
+export interface FeatureBackup {
+  /** 書き出したファイルの中でこの機能を指す名前。**あとから変えない** */
+  key: string
+  export(): Promise<unknown>
+  /** 中身が違えば投げる。読み込みはまるごと上書き */
+  import(raw: unknown): Promise<void>
 }
