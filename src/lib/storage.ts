@@ -1,5 +1,14 @@
 import { clear, createStore, get, set } from 'idb-keyval'
-import type { DailyReview, DayPlan, Settings, Task, TaskLog } from '../types'
+import type {
+  DailyReview,
+  DayPlan,
+  Exam,
+  Settings,
+  StudyNode,
+  StudySession,
+  Task,
+  TaskLog,
+} from '../types'
 import { DEFAULT_SETTINGS } from '../types'
 
 /** アプリが持つデータ一式 */
@@ -9,6 +18,10 @@ export interface AppData {
   plans: DayPlan[]
   logs: TaskLog[]
   reviews: DailyReview[]
+  // --- 学習 OS (Phase 2) ---
+  nodes: StudyNode[]
+  exams: Exam[]
+  sessions: StudySession[]
 }
 
 export const EMPTY_DATA: AppData = {
@@ -17,6 +30,9 @@ export const EMPTY_DATA: AppData = {
   plans: [],
   logs: [],
   reviews: [],
+  nodes: [],
+  exams: [],
+  sessions: [],
 }
 
 /**
@@ -91,6 +107,10 @@ export function parseBackup(raw: unknown): AppData {
     plans: data.plans ?? [],
     logs: data.logs ?? [],
     reviews: data.reviews ?? [],
+    // 学習 OS より前のバックアップには入っていない
+    nodes: data.nodes ?? [],
+    exams: data.exams ?? [],
+    sessions: data.sessions ?? [],
   }
 }
 

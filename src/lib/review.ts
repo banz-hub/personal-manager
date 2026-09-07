@@ -5,11 +5,20 @@
  * だから所見は「できなかった」ではなく「次はこうする」で書く。
  */
 
-import type { DailyReview, DayPlan, Task, TaskLog } from '../types'
-import { AREA_LABELS } from '../types'
+import type {
+  DailyReview,
+  DayPlan,
+  Mastery,
+  StudyNode,
+  StudySession,
+  Task,
+  TaskLog,
+} from '../types'
+import { AREA_LABELS, MASTERY_LABELS } from '../types'
 import { formatDuration, toMinutes } from './date'
 import { newId } from './id'
-import { plannedTaskIds } from './scheduler'
+import { plannedNodeIds, plannedTaskIds, workBlocks } from './scheduler'
+import { areaOf } from './study'
 
 // ---------- 完了の記録 ----------
 
@@ -56,6 +65,39 @@ export function completeWork(
   }
 }
 
+export interface StudyCompletionResult {
+  node: StudyNode
+  session: StudySession
+}
+
+/**
+ * 学習を 1 回終えたときの記録。
+ *
+ * 理解度は本人が選んだときだけ更新する。時間を使ったからといって
+ * 勝手に「理解した」ことにはしない。
+ */
+export function completeStudy(
+  node: StudyNode,
+  actualMin: number,
+  date: string,
+  mastery?: Mastery,
+  score?: { correct: number; attempted: number },
+): StudyCompletionResult {
+  return {
+    node: mastery ? { ...node, mastery } : node,
+    session: {
+      id: newId('ses'),
+      nodeId: node.id,
+      date,
+      minutes: actualMin,
+      mastery,
+      correct: score?.correct,
+      attempted: score?.attempted,
+      createdAt: new Date().toISOString(),
+    },
+  }
+}
+
 // ---------- 繰越 ----------
 
 export interface CarryOverResult {
@@ -68,6 +110,9 @@ export interface CarryOverResult {
  * その日の予定に入っていたのに終わらなかったタスクを翌日へ送る。
  * 締切を勝手に動かすことはしない。先送り回数だけ増やして、
  * 次の日の優先順位が自然に上がるようにする。
+ *
+ * 学習項目は繰り越しの対象にしない。やらなかった日数そのものが
+ * 「◯日やっていない」として優先順位に効くので、二重に数えないため。
  */
 export function carryOver(tasks: Task[], plan: DayPlan | undefined, date: string): CarryOverResult {
   if (!plan) return { tasks, carried: [] }
@@ -94,6 +139,9 @@ export interface ReviewInput {
   tasks: Task[]
   /** その日のログ */
   logs: TaskLog[]
+  nodes: StudyNode[]
+  /** その日の学習記録 */
+  sessions: StudySession[]
 }
 
 /** 見積もりと実績のズレが「大きい」とみなす比 */
@@ -101,9 +149,11 @@ const OVERRUN = 1.2
 const UNDERRUN = 0.6
 
 export function buildReview(input: ReviewInput): DailyReview {
-  const { date, plan, tasks, logs } = input
+  const { date, plan, tasks, logs, nodes, sessions } = input
   const byId = new Map(tasks.map((t) => [t.id, t]))
+  const nodeById = new Map(nodes.map((n) => [n.id, n]))
   const plannedIds = plan ? plannedTaskIds(plan) : []
+  const plannedNodes = plan ? plannedNodeIds(plan) : []
 
   const doneTaskIds = plannedIds.filter((id) => byId.get(id)?.status === 'done')
   const workedIds = new Set(logs.map((l) => l.taskId))
@@ -113,12 +163,16 @@ export function buildReview(input: ReviewInput): DailyReview {
   })
   const deferredTaskIds = undoneTaskIds.filter((id) => !workedIds.has(id))
 
+  // 学習は「終わり」が無いので、記録がついたかどうかで見る
+  const studiedIds = new Set(sessions.map((s) => s.nodeId))
+  const doneNodeIds = plannedNodes.filter((id) => studiedIds.has(id))
+  const undoneNodeIds = plannedNodes.filter((id) => !studiedIds.has(id))
+
   const plannedMin = plan
-    ? plan.blocks
-        .filter((b) => b.kind === 'task')
-        .reduce((sum, b) => sum + (toMinutes(b.end) - toMinutes(b.start)), 0)
+    ? workBlocks(plan).reduce((sum, b) => sum + (toMinutes(b.end) - toMinutes(b.start)), 0)
     : 0
-  const actualMin = logs.reduce((sum, l) => sum + l.actualMin, 0)
+  const taskMin = logs.reduce((sum, l) => sum + l.actualMin, 0)
+  const studyMin = sessions.reduce((sum, s) => sum + s.minutes, 0)
 
   return {
     id: date,
@@ -126,22 +180,48 @@ export function buildReview(input: ReviewInput): DailyReview {
     doneTaskIds,
     undoneTaskIds,
     deferredTaskIds,
+    doneNodeIds,
+    undoneNodeIds,
     plannedMin,
-    actualMin,
-    findings: analyze({ plannedIds, doneTaskIds, undoneTaskIds, deferredTaskIds, plannedMin, actualMin, logs, byId }),
+    actualMin: taskMin + studyMin,
+    studyMin,
+    findings: analyze({
+      plannedIds,
+      plannedNodes,
+      doneTaskIds,
+      undoneTaskIds,
+      deferredTaskIds,
+      doneNodeIds,
+      undoneNodeIds,
+      plannedMin,
+      actualMin: taskMin + studyMin,
+      studyMin,
+      logs,
+      sessions,
+      byId,
+      nodeById,
+      nodes,
+    }),
     createdAt: new Date().toISOString(),
   }
 }
 
 interface AnalyzeInput {
   plannedIds: string[]
+  plannedNodes: string[]
   doneTaskIds: string[]
   undoneTaskIds: string[]
   deferredTaskIds: string[]
+  doneNodeIds: string[]
+  undoneNodeIds: string[]
   plannedMin: number
   actualMin: number
+  studyMin: number
   logs: TaskLog[]
+  sessions: StudySession[]
   byId: Map<string, Task>
+  nodeById: Map<string, StudyNode>
+  nodes: StudyNode[]
 }
 
 /**
@@ -150,19 +230,19 @@ interface AnalyzeInput {
  */
 function analyze(a: AnalyzeInput): string[] {
   const out: string[] = []
+  const totalPlanned = a.plannedIds.length + a.plannedNodes.length
+  const totalDone = a.doneTaskIds.length + a.doneNodeIds.length
 
-  if (a.plannedIds.length === 0) {
+  if (totalPlanned === 0) {
     out.push('今日は予定を作っていません。朝に「今日の予定を作る」を押すと、空き時間から組み立てます。')
     return out
   }
 
-  const rate = a.doneTaskIds.length / a.plannedIds.length
-
-  if (rate === 1) {
-    out.push(`予定した${a.plannedIds.length}件をすべて終えました。明日も同じ配分で組めます。`)
+  if (totalDone === totalPlanned) {
+    out.push(`予定した${totalPlanned}件をすべて終えました。明日も同じ配分で組めます。`)
   } else {
     out.push(
-      `予定${a.plannedIds.length}件のうち${a.doneTaskIds.length}件が完了、${a.undoneTaskIds.length}件が未完了です。`,
+      `予定${totalPlanned}件のうち${totalDone}件が完了、${totalPlanned - totalDone}件が未完了です。`,
     )
   }
 
@@ -191,6 +271,15 @@ function analyze(a: AnalyzeInput): string[] {
     out.push(`手をつけられなかったのは${titles}です。明日の優先順位を上げて先に置きます。`)
   }
 
+  if (a.undoneNodeIds.length > 0) {
+    const titles = a.undoneNodeIds
+      .map((id) => a.nodeById.get(id)?.title)
+      .filter(Boolean)
+      .slice(0, 3)
+      .join('、')
+    out.push(`学習で手をつけられなかったのは${titles}です。やらなかった日数ぶん、優先順位が上がります。`)
+  }
+
   // 実績が予定の半分以下 = 時間そのものが取れていない。詰め込みが原因のことが多い
   if (a.plannedMin > 0 && a.actualMin < a.plannedMin * 0.5) {
     out.push(
@@ -199,13 +288,41 @@ function analyze(a: AnalyzeInput): string[] {
     )
   }
 
+  // 理解度が上がった項目は、続ける動機になるので出す
+  const improved = a.sessions.filter((s) => s.mastery === 'mastered' || s.mastery === 'understood')
+  if (improved.length > 0) {
+    const line = improved
+      .slice(0, 3)
+      .map((s) => `${a.nodeById.get(s.nodeId)?.title ?? '項目'}→${MASTERY_LABELS[s.mastery!]}`)
+      .join('、')
+    out.push(`理解度が進んだのは ${line} です。`)
+  }
+
+  // 正答率が低かったものは、次に復習で戻ってくる
+  const weak = a.sessions.filter(
+    (s) => s.attempted != null && s.attempted >= 5 && (s.correct ?? 0) / s.attempted < 0.6,
+  )
+  for (const s of weak.slice(0, 2)) {
+    const pct = Math.round(((s.correct ?? 0) / (s.attempted as number)) * 100)
+    out.push(
+      `「${a.nodeById.get(s.nodeId)?.title ?? '項目'}」の正答率は${pct}%でした。要復習にしておくと、近いうちにまた出ます。`,
+    )
+  }
+
   // 分野の偏りは、本人が気づきにくいので出す
   const byArea = new Map<string, number>()
   for (const l of a.logs) byArea.set(l.area, (byArea.get(l.area) ?? 0) + l.actualMin)
+  for (const s of a.sessions) {
+    const area = areaOf(a.nodes, s.nodeId)
+    byArea.set(area, (byArea.get(area) ?? 0) + s.minutes)
+  }
   if (byArea.size > 0) {
     const line = [...byArea.entries()]
       .sort((x, y) => y[1] - x[1])
-      .map(([area, min]) => `${AREA_LABELS[area as keyof typeof AREA_LABELS] ?? area} ${formatDuration(min)}`)
+      .map(
+        ([area, min]) =>
+          `${AREA_LABELS[area as keyof typeof AREA_LABELS] ?? area} ${formatDuration(min)}`,
+      )
       .join(' / ')
     out.push(`内訳: ${line}`)
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { DayPlan, Task, TaskLog } from '../types'
-import { buildReview, carryOver, completeWork } from './review'
+import type { DayPlan, StudyNode, StudySession, Task, TaskLog } from '../types'
+import { buildReview, carryOver, completeStudy, completeWork } from './review'
 
 const TODAY = '2026-09-07'
 
@@ -123,6 +123,8 @@ describe('日次レビュー', () => {
       plan: planWith(['a', 'b']),
       tasks,
       logs: [log({ taskId: 'a', actualMin: 75 })],
+      nodes: [],
+      sessions: [],
     })
 
     expect(r.doneTaskIds).toEqual(['a'])
@@ -141,6 +143,8 @@ describe('日次レビュー', () => {
       plan: planWith(['a', 'b']),
       tasks,
       logs: [log({ taskId: 'a', actualMin: 30 })],
+      nodes: [],
+      sessions: [],
     })
 
     expect(r.deferredTaskIds).toEqual(['b'])
@@ -154,6 +158,8 @@ describe('日次レビュー', () => {
       plan: planWith(['a']),
       tasks,
       logs: [log({ taskId: 'a', plannedMin: 60, actualMin: 90 })],
+      nodes: [],
+      sessions: [],
     })
 
     expect(r.findings.join()).toContain('数学課題')
@@ -171,6 +177,8 @@ describe('日次レビュー', () => {
       plan: planWith(['a', 'b', 'c']),
       tasks,
       logs: [log({ taskId: 'a', plannedMin: 60, actualMin: 20 })],
+      nodes: [],
+      sessions: [],
     })
 
     expect(r.findings.join()).toContain('上位3件に絞る')
@@ -183,12 +191,14 @@ describe('日次レビュー', () => {
       plan: planWith(['a']),
       tasks,
       logs: [log({ taskId: 'a' })],
+      nodes: [],
+      sessions: [],
     })
     expect(r.findings[0]).toContain('すべて終えました')
   })
 
   it('予定を作っていない日は、その案内だけを返す', () => {
-    const r = buildReview({ date: TODAY, plan: undefined, tasks: [], logs: [] })
+    const r = buildReview({ date: TODAY, plan: undefined, tasks: [], logs: [], nodes: [], sessions: [] })
     expect(r.findings.join()).toContain('予定を作っていません')
   })
 
@@ -199,8 +209,138 @@ describe('日次レビュー', () => {
       plan: planWith(['a']),
       tasks,
       logs: [log({ taskId: 'a', area: 'math', actualMin: 60 }), log({ taskId: 'a', area: 'english', actualMin: 20 })],
+      nodes: [],
+      sessions: [],
     })
     expect(r.findings.join()).toContain('数学 1時間')
     expect(r.findings.join()).toContain('英語 20分')
+  })
+})
+
+describe('学習も含めたレビュー', () => {
+  const nodes: StudyNode[] = [
+    { id: 'math', title: '数学', area: 'math', importance: 2, estimateMin: 0, order: 0, createdAt: '' },
+    { id: 'open', title: '開集合', parentId: 'math', importance: 2, estimateMin: 60, order: 0, createdAt: '' },
+    { id: 'closed', title: '閉集合', parentId: 'math', importance: 2, estimateMin: 60, order: 1, createdAt: '' },
+  ]
+
+  function planWithStudy(taskIds: string[], nodeIds: string[]): DayPlan {
+    const base = planWith(taskIds)
+    return {
+      ...base,
+      blocks: [
+        ...base.blocks,
+        ...nodeIds.map((id, i) => ({
+          id: `s${i}`,
+          start: `${String(20 + i).padStart(2, '0')}:00`,
+          end: `${String(20 + i).padStart(2, '0')}:30`,
+          kind: 'study' as const,
+          nodeId: id,
+          title: id,
+        })),
+      ],
+    }
+  }
+
+  function ses(patch: Partial<StudySession> & { nodeId: string }): StudySession {
+    return { id: `s_${patch.nodeId}`, date: TODAY, minutes: 30, createdAt: '', ...patch }
+  }
+
+  it('学習の予定と記録を突き合わせる', () => {
+    const r = buildReview({
+      date: TODAY,
+      plan: planWithStudy([], ['open', 'closed']),
+      tasks: [],
+      logs: [],
+      nodes,
+      sessions: [ses({ nodeId: 'open' })],
+    })
+
+    expect(r.doneNodeIds).toEqual(['open'])
+    expect(r.undoneNodeIds).toEqual(['closed'])
+    expect(r.studyMin).toBe(30)
+    expect(r.findings.join()).toContain('閉集合')
+  })
+
+  it('学習時間が実績と内訳に入る', () => {
+    const r = buildReview({
+      date: TODAY,
+      plan: planWithStudy(['a'], ['open']),
+      tasks: [task({ id: 'a', title: 'A', status: 'done' })],
+      logs: [log({ taskId: 'a', area: 'english', actualMin: 20 })],
+      nodes,
+      sessions: [ses({ nodeId: 'open', minutes: 45 })],
+    })
+
+    expect(r.actualMin).toBe(65)
+    expect(r.studyMin).toBe(45)
+    expect(r.findings.join()).toContain('数学 45分')
+    expect(r.findings.join()).toContain('英語 20分')
+  })
+
+  it('理解度が進んだ項目を挙げる', () => {
+    const r = buildReview({
+      date: TODAY,
+      plan: planWithStudy([], ['open']),
+      tasks: [],
+      logs: [],
+      nodes,
+      sessions: [ses({ nodeId: 'open', mastery: 'mastered' })],
+    })
+    expect(r.findings.join()).toContain('開集合→習得')
+  })
+
+  it('正答率が低かった項目は、復習に回す案内を出す', () => {
+    const r = buildReview({
+      date: TODAY,
+      plan: planWithStudy([], ['open']),
+      tasks: [],
+      logs: [],
+      nodes,
+      sessions: [ses({ nodeId: 'open', correct: 3, attempted: 10 })],
+    })
+    expect(r.findings.join()).toContain('正答率は30%')
+    expect(r.findings.join()).toContain('要復習')
+  })
+
+  it('学習だけの日でも完了率を数える', () => {
+    const r = buildReview({
+      date: TODAY,
+      plan: planWithStudy([], ['open', 'closed']),
+      tasks: [],
+      logs: [],
+      nodes,
+      sessions: [ses({ nodeId: 'open' }), ses({ nodeId: 'closed' })],
+    })
+    expect(r.findings[0]).toContain('2件をすべて終えました')
+  })
+})
+
+describe('学習の完了記録', () => {
+  const node: StudyNode = {
+    id: 'open',
+    title: '開集合',
+    importance: 2,
+    estimateMin: 60,
+    order: 0,
+    createdAt: '',
+  }
+
+  it('手応えを選べば理解度が変わる', () => {
+    const { node: next, session } = completeStudy(node, 30, TODAY, 'understood')
+    expect(next.mastery).toBe('understood')
+    expect(session.minutes).toBe(30)
+    expect(session.date).toBe(TODAY)
+  })
+
+  it('手応えを選ばなければ理解度は変えない', () => {
+    const { node: next } = completeStudy(node, 30, TODAY)
+    expect(next.mastery).toBeUndefined()
+  })
+
+  it('正答数を残せる', () => {
+    const { session } = completeStudy(node, 30, TODAY, 'learning', { correct: 7, attempted: 10 })
+    expect(session.correct).toBe(7)
+    expect(session.attempted).toBe(10)
   })
 })

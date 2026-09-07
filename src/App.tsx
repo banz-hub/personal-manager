@@ -2,6 +2,7 @@ import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { formatDate, todayKey } from './lib/date'
 import ReviewPage from './pages/ReviewPage'
 import SettingsPage from './pages/SettingsPage'
+import StudyPage from './pages/StudyPage'
 import TasksPage from './pages/TasksPage'
 import TodayPage from './pages/TodayPage'
 import { useApp } from './state/AppContext'
@@ -9,6 +10,7 @@ import { useApp } from './state/AppContext'
 const NAV = [
   { to: '/', label: '今日', icon: '🎯' },
   { to: '/tasks', label: 'タスク', icon: '📋' },
+  { to: '/study', label: '学習', icon: '📚' },
   { to: '/review', label: 'ふりかえり', icon: '🌙' },
   { to: '/settings', label: '設定', icon: '⚙️' },
 ]
@@ -33,6 +35,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<TodayPage />} />
             <Route path="/tasks" element={<TasksPage />} />
+            <Route path="/study" element={<StudyPage />} />
             <Route path="/review" element={<ReviewPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<TodayPage />} />

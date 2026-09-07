@@ -234,7 +234,12 @@ export function explainTop(scored: ScoredTask[]): string {
   if (!top) return '登録されているタスクがありません。まず今日やることを入れてください。'
   const why = top.reasons.slice(0, 2).join('、')
   const area = AREA_LABELS[top.task.area]
-  return `今日は「${top.task.title}」(${area}) が最優先です。${why}${why ? 'ためです' : ''}。目安は${formatDuration(top.todayMin)}。`
+  return (
+    `今日は「${top.task.title}」(${area}) が最優先です。` +
+    // 理由の文末がどうであっても崩れないよう、「〜ためです」でつながない
+    (why ? `理由は${why}。` : '') +
+    `目安は${formatDuration(top.todayMin)}。`
+  )
 }
 
 /** 「今日の最重要 3 項目」。継続と任意は入れない */

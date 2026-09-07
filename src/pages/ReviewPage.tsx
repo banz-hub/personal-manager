@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Banner, Empty, Stat } from '../components/ui'
 import { addDays, formatDate, formatDuration, todayKey } from '../lib/date'
 import { buildReview, carryOver } from '../lib/review'
+import { areaOf } from '../lib/study'
 import { useApp } from '../state/AppContext'
 import { AREA_LABELS } from '../types'
 
@@ -12,24 +13,34 @@ export default function ReviewPage() {
 
   const plan = data.plans.find((p) => p.date === date)
   const logs = useMemo(() => data.logs.filter((l) => l.date === date), [data.logs, date])
+  const sessions = useMemo(
+    () => data.sessions.filter((s) => s.date === date),
+    [data.sessions, date],
+  )
   const saved = data.reviews.find((r) => r.date === date)
 
   // 保存済みがあればそれを、無ければその場で組み立てて見せる
   const review = useMemo(
-    () => saved ?? buildReview({ date, plan, tasks: data.tasks, logs }),
-    [saved, date, plan, data.tasks, logs],
+    () => saved ?? buildReview({ date, plan, tasks: data.tasks, logs, nodes: data.nodes, sessions }),
+    [saved, date, plan, data.tasks, logs, data.nodes, sessions],
   )
 
   const titleOf = (id: string) => data.tasks.find((t) => t.id === id)?.title ?? '（削除済み）'
+  const nodeTitleOf = (id: string) => data.nodes.find((n) => n.id === id)?.title ?? '（削除済み）'
 
+  // タスクの実績と学習の実績を同じ分野の物差しで足す
   const byArea = useMemo(() => {
     const m = new Map<string, number>()
     for (const l of logs) m.set(l.area, (m.get(l.area) ?? 0) + l.actualMin)
+    for (const s of sessions) {
+      const area = areaOf(data.nodes, s.nodeId)
+      m.set(area, (m.get(area) ?? 0) + s.minutes)
+    }
     return [...m.entries()].sort((a, b) => b[1] - a[1])
-  }, [logs])
+  }, [logs, sessions, data.nodes])
 
   const save = () => {
-    upsert('reviews', buildReview({ date, plan, tasks: data.tasks, logs }))
+    upsert('reviews', buildReview({ date, plan, tasks: data.tasks, logs, nodes: data.nodes, sessions }))
     setMessage('レビューを保存しました')
   }
 
@@ -67,9 +78,9 @@ export default function ReviewPage() {
       {message && <Banner>{message}</Banner>}
 
       <div className="stats">
-        <Stat k="完了" v={`${review.doneTaskIds.length}件`} />
-        <Stat k="予定した時間" v={formatDuration(review.plannedMin)} />
+        <Stat k="完了" v={`${review.doneTaskIds.length + review.doneNodeIds.length}件`} />
         <Stat k="実績" v={formatDuration(review.actualMin)} />
+        <Stat k="うち学習" v={formatDuration(review.studyMin)} />
       </div>
 
       <section className="bucket">
@@ -125,6 +136,23 @@ export default function ReviewPage() {
           ))
         )}
       </section>
+
+      {(review.doneNodeIds.length > 0 || review.undoneNodeIds.length > 0) && (
+        <section className="bucket">
+          <h2 className="section">学習</h2>
+          {review.doneNodeIds.map((id) => (
+            <div key={id} className="task is-done">
+              <span className="task-title done">{nodeTitleOf(id)}</span>
+            </div>
+          ))}
+          {review.undoneNodeIds.map((id) => (
+            <div key={id} className="task b-urgent">
+              <span className="task-title">{nodeTitleOf(id)}</span>
+              <span className="dim">手をつけられなかった</span>
+            </div>
+          ))}
+        </section>
+      )}
 
       <div className="row">
         <button type="button" className="btn grow" onClick={save}>

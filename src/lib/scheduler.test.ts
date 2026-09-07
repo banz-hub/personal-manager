@@ -3,6 +3,7 @@ import type { Settings, Task } from '../types'
 import { DEFAULT_SETTINGS } from '../types'
 import { toMinutes } from './date'
 import { rankTasks } from './priority'
+import { taskToSchedulable } from './today'
 import { generatePlan, subtractBusy, usableSlots, workMinutes, type FreeSlot } from './scheduler'
 
 const TODAY = '2026-09-07'
@@ -31,7 +32,7 @@ function plan(tasks: Task[], slots: FreeSlot[], now = toMinutes('18:00'), s?: Pa
     now,
     availableMin: slots.reduce((sum, x) => sum + (x.endMin - x.startMin), 0),
   })
-  return generatePlan({ slots, ranked, settings, today: TODAY, now })
+  return generatePlan({ slots, items: ranked.map(taskToSchedulable), settings, today: TODAY, now })
 }
 
 describe('使える空き時間の切り出し', () => {

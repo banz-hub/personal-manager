@@ -1,8 +1,9 @@
 /**
  * アプリ全体で使うデータ型。すべて端末ローカル (IndexedDB) に保存される。
  *
- * MVP では 5 つだけに絞ってある (Task / DayPlan / TaskLog / DailyReview / Settings)。
- * 学習 OS の科目や就活の企業は、実際に作る Phase まで型を足さない。
+ * Phase 1 は 5 つ (Task / DayPlan / TaskLog / DailyReview / Settings)。
+ * Phase 2 で学習 OS の 3 つ (StudyNode / Exam / StudySession) を足した。
+ * 就活の企業は、実際に作る Phase 4 まで型を足さない。
  * 先に作ると、使う頃には形が合わなくなるため。
  */
 
@@ -77,7 +78,7 @@ export interface Task {
 }
 
 /** 予定表の 1 コマ */
-export type BlockKind = 'task' | 'break' | 'buffer' | 'fixed'
+export type BlockKind = 'task' | 'study' | 'break' | 'buffer' | 'fixed'
 
 export interface PlanBlock {
   id: string
@@ -86,6 +87,8 @@ export interface PlanBlock {
   end: string
   kind: BlockKind
   taskId?: string
+  /** 学習項目を置いたとき (kind === 'study') */
+  nodeId?: string
   title: string
   /** なぜここに置いたか。ユーザーが納得して実行できるように必ず入れる */
   reason?: string
@@ -136,8 +139,13 @@ export interface DailyReview {
   undoneTaskIds: string[]
   /** 明日以降に送ったタスク */
   deferredTaskIds: string[]
+  /** 予定に入れた学習項目のうち、記録がついたもの / つかなかったもの */
+  doneNodeIds: string[]
+  undoneNodeIds: string[]
   plannedMin: number
   actualMin: number
+  /** そのうち学習にあてた分 */
+  studyMin: number
   /** ルールで導いた所見。「見積もりが甘い」「開始が遅かった」など */
   findings: string[]
   note?: string
@@ -167,6 +175,10 @@ export interface Settings {
    * 経路の計算はよてい帳の担当なので、こちらは粗く引き当てるだけ。
    */
   travelAllowanceMin: number
+  /** 学習 1 回あたりの長さの上限 (分) */
+  studyChunkMin: number
+  /** 1 日に予定へ載せる学習項目の上限。多すぎると今日の話でなくなる */
+  studyPerDayMax: number
   updatedAt: string
 }
 
@@ -180,5 +192,117 @@ export const DEFAULT_SETTINGS: Settings = {
   minSlotMin: 20,
   useYoteicho: true,
   travelAllowanceMin: 60,
+  studyChunkMin: 30,
+  studyPerDayMax: 4,
   updatedAt: '',
+}
+
+// ==================== 学習 OS (Phase 2) ====================
+
+/**
+ * 学習の階層のノード。科目・単元・テーマ・学習項目をこの 1 つの型で表す。
+ *
+ * 4 段の型を別々に作らず parentId でつないだのは、
+ * 段数が科目によって違うため。「数学 → 位相空間論 → 開集合」で足りるものもあれば、
+ * 「教職 → 教育心理 → 発達段階 → ピアジェ」まで要るものもある。
+ * 型を段ごとに分けると、浅い科目に空の段ができるか、深い科目が入らなくなる。
+ */
+export interface StudyNode {
+  id: string
+  /** 親のノード id。無ければ科目 (いちばん上) */
+  parentId?: string
+  title: string
+  /** 科目 (ルート) にだけ入れる。子は親をたどって受け継ぐ */
+  area?: TaskArea
+  /**
+   * 理解度。子を持つノードには入れない (子から集計して出す)。
+   * 葉 = 実際に勉強する単位、という区別をここでつけている。
+   */
+  mastery?: Mastery
+  /** 学習上の重要度 */
+  importance: Importance
+  /** ひととおり終えるのに要る見込み (分)。1 回の学習の長さの目安にもする */
+  estimateMin: number
+  /** 表示順 */
+  order: number
+  createdAt: string
+  note?: string
+}
+
+/** 学習項目の状態 */
+export type Mastery = 'new' | 'learning' | 'understood' | 'needs-review' | 'mastered'
+
+export const MASTERY_LABELS: Record<Mastery, string> = {
+  new: '未学習',
+  learning: '学習中',
+  understood: '理解',
+  'needs-review': '要復習',
+  mastered: '習得',
+}
+
+/** 表示や集計で使う並び順 (弱いものが先) */
+export const MASTERY_ORDER: Mastery[] = [
+  'new',
+  'needs-review',
+  'learning',
+  'understood',
+  'mastered',
+]
+
+/**
+ * 理解度ごとの「残りどれくらい手が要るか」の係数。
+ * 必要学習時間の逆算に使う。習得済みは 0 (もう時間を積まない)。
+ */
+export const MASTERY_REMAINING: Record<Mastery, number> = {
+  new: 1,
+  'needs-review': 0.6,
+  learning: 0.7,
+  understood: 0.35,
+  mastered: 0,
+}
+
+/**
+ * 次に復習するまでの間隔 (日)。
+ * 忘れかけた頃に出すのが目的なので、理解が進むほど間隔を空ける。
+ * new は「まだ復習ではなく初回学習」なので間隔を持たない。
+ */
+export const REVIEW_INTERVAL_DAYS: Record<Mastery, number | null> = {
+  new: null,
+  'needs-review': 1,
+  learning: 2,
+  understood: 5,
+  mastered: 14,
+}
+
+export interface Exam {
+  id: string
+  title: string
+  /** YYYY-MM-DD */
+  date: string
+  /** 試験範囲。ここに挙げたノードとその配下すべてが範囲になる */
+  scopeNodeIds: string[]
+  importance: Importance
+  createdAt: string
+  note?: string
+}
+
+/**
+ * 学習の記録。1 回勉強するごとに 1 件。
+ *
+ * 最終学習日・学習時間・復習回数・正答率はここから集計して出す。
+ * ノードに書き戻すと、記録と表示が食い違ったときに直せなくなるため。
+ */
+export interface StudySession {
+  id: string
+  nodeId: string
+  /** YYYY-MM-DD */
+  date: string
+  minutes: number
+  /** 終えたときの手応え。ノードの mastery もこれで更新する */
+  mastery?: Mastery
+  /** 問題を解いたときだけ */
+  correct?: number
+  attempted?: number
+  createdAt: string
+  note?: string
 }

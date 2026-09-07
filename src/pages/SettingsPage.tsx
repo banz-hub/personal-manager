@@ -143,6 +143,34 @@ export default function SettingsPage() {
       </section>
 
       <section className="bucket">
+        <h2 className="section">学習</h2>
+        <div className="grid2">
+          <Field label="1回の学習の長さ(分)">
+            <input
+              type="number"
+              min={10}
+              step={5}
+              value={s.studyChunkMin}
+              onChange={(e) => setSettings({ studyChunkMin: Number(e.target.value) })}
+            />
+          </Field>
+          <Field label="1日に予定へ載せる項目数">
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={s.studyPerDayMax}
+              onChange={(e) => setSettings({ studyPerDayMax: Number(e.target.value) })}
+            />
+          </Field>
+        </div>
+        <p className="hint">
+          学習項目は数が増えるので、上位だけを今日の予定に載せます。全部載せると「今日やりたいことの合計」が
+          現実離れした数字になり、所見が意味を失うためです。理解が進んだ項目は1回の時間が自動で短くなります。
+        </p>
+      </section>
+
+      <section className="bucket">
         <h2 className="section">よてい帳との連携</h2>
         <label className="row tight">
           <input
@@ -200,7 +228,8 @@ export default function SettingsPage() {
         <h2 className="section">保存している件数</h2>
         <p className="dim">
           タスク {data.tasks.length} / 予定表 {data.plans.length} / 実績ログ {data.logs.length} /
-          レビュー {data.reviews.length}
+          レビュー {data.reviews.length} / 学習項目 {data.nodes.length} / 試験 {data.exams.length} /
+          学習記録 {data.sessions.length}
         </p>
       </section>
     </div>

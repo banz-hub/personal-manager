@@ -7,12 +7,14 @@
  *   - 続けて作業した時間が一定を超えたら休憩を挟む
  *   - 各コマの余りはバッファとして残す
  * を守る。守れなかったことは notes に理由として残す。
+ *
+ * タスクと学習項目のどちらも置けるよう、Schedulable という共通の形だけを受け取る。
+ * 優先順位の決め方はここでは持たない (priority.ts と study.ts の担当)。
  */
 
-import type { DayPlan, PlanBlock, Settings } from '../types'
+import type { BlockKind, DayPlan, PlanBlock, Settings } from '../types'
 import { formatDuration, fromMinutes, toMinutes } from './date'
 import { newId } from './id'
-import type { ScoredTask } from './priority'
 
 /** 予定の入っていない時間帯 */
 export interface FreeSlot {
@@ -22,9 +24,27 @@ export interface FreeSlot {
   label?: string
 }
 
+/** 予定表に置けるもの。タスクでも学習項目でも、ここまで揃えば置ける */
+export interface Schedulable {
+  kind: Extract<BlockKind, 'task' | 'study'>
+  /** タスクの id、または学習項目のノード id */
+  refId: string
+  title: string
+  /** 今日これに充てる分数 */
+  todayMin: number
+  dueDate?: string
+  dueTime?: string
+  /** なぜここに置いたか */
+  reason: string
+  /** 入りきらなかったときに知らせるべきものか */
+  critical: boolean
+  /** 「今日やりたいことの合計」に数えるか。任意のものは数えない */
+  counted: boolean
+}
+
 export interface GenerateInput {
   slots: FreeSlot[]
-  ranked: ScoredTask[]
+  items: Schedulable[]
   settings: Settings
   /** YYYY-MM-DD */
   today: string
@@ -47,20 +67,21 @@ export function usableSlots(slots: FreeSlot[], now: number, minSlotMin: number):
     .sort((a, b) => a.startMin - b.startMin)
 }
 
-/** そのタスクを cursor から始めて、締切に間に合うか */
-function fitsDeadline(scored: ScoredTask, cursor: number, minutes: number, today: string): boolean {
-  const { dueDate, dueTime } = scored.task
-  if (!dueDate || dueDate !== today || !dueTime) return true
-  return cursor + minutes <= toMinutes(dueTime)
+/** cursor から始めて、締切に間に合うか */
+function fitsDeadline(item: Schedulable, cursor: number, today: string): boolean {
+  if (!item.dueDate || item.dueDate !== today || !item.dueTime) return true
+  return cursor + item.todayMin <= toMinutes(item.dueTime)
 }
 
-function block(patch: Omit<PlanBlock, 'id' | 'start' | 'end'> & { from: number; to: number }): PlanBlock {
+function block(
+  patch: Omit<PlanBlock, 'id' | 'start' | 'end'> & { from: number; to: number },
+): PlanBlock {
   const { from, to, ...rest } = patch
   return { id: newId('blk'), start: fromMinutes(from), end: fromMinutes(to), ...rest }
 }
 
 export function generatePlan(input: GenerateInput): DayPlan {
-  const { ranked, settings, today, now } = input
+  const { items, settings, today, now } = input
   const slots = usableSlots(input.slots, now, settings.minSlotMin)
 
   const freeMin = slots.reduce((sum, s) => sum + minutesOf(s), 0)
@@ -80,11 +101,11 @@ export function generatePlan(input: GenerateInput): DayPlan {
       const remainingInSlot = slot.endMin - cursor
       if (remainingInSlot < 5 || used >= budget) break
 
-      const next = ranked.find((s) => {
-        if (placed.has(s.task.id)) return false
-        if (s.todayMin > remainingInSlot) return false
-        if (used + s.todayMin > budget) return false
-        return fitsDeadline(s, cursor, s.todayMin, today)
+      const next = items.find((item) => {
+        if (placed.has(key(item))) return false
+        if (item.todayMin > remainingInSlot) return false
+        if (used + item.todayMin > budget) return false
+        return fitsDeadline(item, cursor, today)
       })
       if (!next) break
 
@@ -110,16 +131,17 @@ export function generatePlan(input: GenerateInput): DayPlan {
         block({
           from: cursor,
           to: cursor + next.todayMin,
-          kind: 'task',
-          taskId: next.task.id,
-          title: next.task.title,
-          reason: next.reasons[0] ?? '今日できる範囲で優先度が高い',
+          kind: next.kind,
+          taskId: next.kind === 'task' ? next.refId : undefined,
+          nodeId: next.kind === 'study' ? next.refId : undefined,
+          title: next.title,
+          reason: next.reason,
         }),
       )
       cursor += next.todayMin
       used += next.todayMin
       sinceBreak += next.todayMin
-      placed.add(next.task.id)
+      placed.add(key(next))
     }
 
     const left = slot.endMin - cursor
@@ -139,9 +161,7 @@ export function generatePlan(input: GenerateInput): DayPlan {
   blocks.sort((a, b) => toMinutes(a.start) - toMinutes(b.start))
 
   // --- 所見をつくる ---
-  const demand = ranked
-    .filter((s) => s.bucket !== 'optional')
-    .reduce((sum, s) => sum + s.todayMin, 0)
+  const demand = items.filter((i) => i.counted).reduce((sum, i) => sum + i.todayMin, 0)
 
   if (freeMin === 0) {
     notes.push('今日は空き時間がありません。予定を見直すか、明日に回してください。')
@@ -152,22 +172,14 @@ export function generatePlan(input: GenerateInput): DayPlan {
     )
   }
 
-  const unplaced = ranked.filter(
-    (s) => !placed.has(s.task.id) && (s.bucket === 'overdue' || s.bucket === 'urgent'),
-  )
-  for (const s of unplaced) {
+  for (const item of items) {
+    if (!item.critical || placed.has(key(item))) continue
     notes.push(
-      `「${s.task.title}」は今日の空き時間に入りませんでした。${
-        s.leftDays !== null && s.leftDays <= 0
+      `「${item.title}」は今日の空き時間に入りませんでした。` +
+        (item.dueDate && item.dueDate <= today
           ? '締切が近いので、他の予定を動かすか範囲を削る判断が要ります。'
-          : '明日に回すことになります。'
-      }`,
+          : '明日に回すことになります。'),
     )
-  }
-
-  const overdueCount = ranked.filter((s) => s.bucket === 'overdue').length
-  if (overdueCount > 0) {
-    notes.push(`期限切れが${overdueCount}件あります。やるか、やめるかを先に決めてください。`)
   }
 
   return {
@@ -181,11 +193,19 @@ export function generatePlan(input: GenerateInput): DayPlan {
   }
 }
 
+/** タスクと学習項目で id がぶつからないようにする */
+function key(item: Schedulable): string {
+  return `${item.kind}:${item.refId}`
+}
+
 /**
  * すでに埋まっている時間を空き時間から差し引く。
- * 予定を作り直すとき、完了済みのブロックの時間に別のタスクを重ねないために使う。
+ * 予定を作り直すとき、完了済みのブロックの時間に別のものを重ねないために使う。
  */
-export function subtractBusy(slots: FreeSlot[], busy: Array<{ from: number; to: number }>): FreeSlot[] {
+export function subtractBusy(
+  slots: FreeSlot[],
+  busy: Array<{ from: number; to: number }>,
+): FreeSlot[] {
   let out = [...slots]
   for (const b of busy) {
     const next: FreeSlot[] = []
@@ -203,14 +223,24 @@ export function subtractBusy(slots: FreeSlot[], busy: Array<{ from: number; to: 
   return out.filter((s) => minutesOf(s) > 0).sort((a, b) => a.startMin - b.startMin)
 }
 
-/** 予定表のうち、実際に作業に充てた分数 */
+/** 予定表のうち、実際に作業に充てた分数 (タスクと学習の合計) */
 export function workMinutes(plan: DayPlan): number {
   return plan.blocks
-    .filter((b) => b.kind === 'task')
+    .filter((b) => b.kind === 'task' || b.kind === 'study')
     .reduce((sum, b) => sum + (toMinutes(b.end) - toMinutes(b.start)), 0)
 }
 
 /** 予定表に入っているタスクの id */
 export function plannedTaskIds(plan: DayPlan): string[] {
   return plan.blocks.filter((b) => b.kind === 'task' && b.taskId).map((b) => b.taskId as string)
+}
+
+/** 予定表に入っている学習項目の id */
+export function plannedNodeIds(plan: DayPlan): string[] {
+  return plan.blocks.filter((b) => b.kind === 'study' && b.nodeId).map((b) => b.nodeId as string)
+}
+
+/** 予定表に入っている作業のコマ (休憩と予備を除く) */
+export function workBlocks(plan: DayPlan): PlanBlock[] {
+  return plan.blocks.filter((b) => b.kind === 'task' || b.kind === 'study')
 }
