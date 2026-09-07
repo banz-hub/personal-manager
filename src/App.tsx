@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import SearchSheet from './components/SearchSheet'
 import { formatDate, todayKey } from './lib/date'
 import JobPage from './pages/JobPage'
 import ReviewPage from './pages/ReviewPage'
@@ -20,13 +22,24 @@ const NAV = [
 export default function App() {
   const { ready } = useApp()
   const { pathname } = useLocation()
+  const [searching, setSearching] = useState(false)
 
   return (
     <div className="app">
       <header className="app-header">
         <span className="app-title">司令塔</span>
-        <span className="app-date">{formatDate(todayKey())}</span>
+        <span className="app-date grow">{formatDate(todayKey())}</span>
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label="探す"
+          onClick={() => setSearching(true)}
+        >
+          🔍
+        </button>
       </header>
+
+      {searching && <SearchSheet onClose={() => setSearching(false)} />}
 
       <main className="app-main">
         {!ready ? (

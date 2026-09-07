@@ -38,6 +38,19 @@ export const IMPORTANCE_LABELS: Record<Importance, string> = {
   1: '低',
 }
 
+/**
+ * 繰り返しの決まり。
+ * 「毎週月曜の課題」のように、終わってもまた出てくるものを表す。
+ * 継続タスク (recurring) とは別物で、あちらは毎日すこしずつ進めるもの。
+ */
+export interface TaskRepeat {
+  kind: 'daily' | 'weekly' | 'monthly'
+  /** weekly のとき。0=日 〜 6=土 */
+  days?: number[]
+  /** monthly のとき。1〜31 */
+  dayOfMonth?: number
+}
+
 export interface Task {
   id: string
   title: string
@@ -76,6 +89,8 @@ export interface Task {
   deferredOn?: string
   /** 最後に取り組んだ日 (YYYY-MM-DD)。継続タスクの間隔を見るのに使う */
   lastWorkedOn?: string
+  /** 決まった曜日に出てくるタスク。完了すると次の日付で作り直す */
+  repeat?: TaskRepeat
   note?: string
 }
 
@@ -192,6 +207,10 @@ export interface Settings {
   notifyEnabled: boolean
   /** コマの何分前に知らせるか */
   notifyBeforeMin: number
+  /** 最後にデータを書き出した日 (YYYY-MM-DD)。催促の判定に使う */
+  lastBackupOn?: string
+  /** 朝と夜の案内を出すか */
+  showRoutine: boolean
   updatedAt: string
 }
 
@@ -211,6 +230,7 @@ export const DEFAULT_SETTINGS: Settings = {
   easeAfterWorkout: true,
   notifyEnabled: true,
   notifyBeforeMin: 10,
+  showRoutine: true,
   updatedAt: '',
 }
 

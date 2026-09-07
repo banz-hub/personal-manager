@@ -266,3 +266,107 @@ export function ExamForm({ initial, nodes, onSave, onCancel, onDelete }: ExamFor
     </>
   )
 }
+
+/**
+ * まとめて追加。
+ * 位相空間論の項目を10個入れるのに、1つずつ画面を開くのは現実的でない。
+ * 1行1項目で貼り付けられるようにする。
+ */
+export function BulkAddForm({
+  parent,
+  nodes,
+  onSave,
+  onCancel,
+}: {
+  parent: StudyNode
+  nodes: StudyNode[]
+  onSave: (nodes: StudyNode[]) => void
+  onCancel: () => void
+}) {
+  const [text, setText] = useState('')
+  const [estimateMin, setEstimateMin] = useState(60)
+  const [importance, setImportance] = useState<Importance>(2)
+
+  // 箇条書きの記号や番号は落とす。教科書の目次をそのまま貼れるように
+  const titles = text
+    .split('\n')
+    .map((l) => l.replace(/^\s*[-・*●○\d０-９.．)）、\s]+/, '').trim())
+    .filter((l) => l.length > 0)
+
+  const startOrder = childrenOf(nodes, parent.id).length
+
+  return (
+    <>
+      <div className="row">
+        <strong className="grow">{parent.title} にまとめて追加</strong>
+        <button type="button" className="btn ghost sm" onClick={onCancel}>
+          閉じる
+        </button>
+      </div>
+
+      <Field label="項目（1行に1つ）">
+        <textarea
+          rows={8}
+          value={text}
+          placeholder={'開集合\n閉集合\n連結性\nコンパクト性'}
+          onChange={(e) => setText(e.target.value)}
+        />
+      </Field>
+      <p className="hint">
+        行頭の「・」「1.」などは落として読み取ります。教科書の目次をそのまま貼れます。
+      </p>
+
+      <div className="grid2">
+        <Field label="1項目の目安(分)">
+          <input
+            type="number"
+            min={5}
+            step={5}
+            value={estimateMin}
+            onChange={(e) => setEstimateMin(Number(e.target.value))}
+          />
+        </Field>
+        <Field label="重要度">
+          <select
+            value={importance}
+            onChange={(e) => setImportance(Number(e.target.value) as Importance)}
+          >
+            {([3, 2, 1] as Importance[]).map((i) => (
+              <option key={i} value={i}>
+                {IMPORTANCE_LABELS[i]}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+
+      {titles.length > 0 && (
+        <p className="hint">
+          {titles.length}件を作ります: {titles.slice(0, 5).join(' / ')}
+          {titles.length > 5 ? ' …' : ''}
+        </p>
+      )}
+
+      <button
+        type="button"
+        className="btn primary"
+        disabled={titles.length === 0}
+        onClick={() =>
+          onSave(
+            titles.map((title, i) => ({
+              id: newId('node'),
+              parentId: parent.id,
+              title,
+              importance,
+              estimateMin,
+              order: startOrder + i,
+              createdAt: new Date().toISOString(),
+            })),
+          )
+        }
+      >
+        {titles.length}件を追加
+      </button>
+    </>
+  )
+}

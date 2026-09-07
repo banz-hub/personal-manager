@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { BarChart } from '../components/Chart'
 import { Banner, Empty, Stat } from '../components/ui'
 import {
   loadKintoreDay,
@@ -9,11 +10,19 @@ import {
 import { addDays, formatDate, formatDuration, todayKey } from '../lib/date'
 import { buildReview, carryOver } from '../lib/review'
 import { areaOf } from '../lib/study'
+import {
+  buildStats,
+  monthBuckets,
+  totalOf,
+  trendOf,
+  yearBuckets,
+  type Bucket,
+} from '../lib/stats'
 import { buildWeekly, formatWeek, isCurrentWeek, shiftWeek, weekStartOf } from '../lib/weekly'
 import { useApp } from '../state/AppContext'
 import { AREA_LABELS } from '../types'
 
-type Tab = 'daily' | 'weekly'
+type Tab = 'daily' | 'weekly' | 'monthly' | 'yearly'
 
 export default function ReviewPage() {
   const [tab, setTab] = useState<Tab>('daily')
@@ -35,9 +44,26 @@ export default function ReviewPage() {
         >
           今週
         </button>
+        <button
+          type="button"
+          className={`btn sm${tab === 'monthly' ? ' primary' : ' ghost'}`}
+          onClick={() => setTab('monthly')}
+        >
+          月ごと
+        </button>
+        <button
+          type="button"
+          className={`btn sm${tab === 'yearly' ? ' primary' : ' ghost'}`}
+          onClick={() => setTab('yearly')}
+        >
+          年ごと
+        </button>
       </div>
 
-      {tab === 'daily' ? <Daily /> : <Weekly />}
+      {tab === 'daily' && <Daily />}
+      {tab === 'weekly' && <Weekly />}
+      {tab === 'monthly' && <Periodic kind="month" />}
+      {tab === 'yearly' && <Periodic kind="year" />}
     </div>
   )
 }
@@ -418,6 +444,115 @@ function Weekly() {
       <p className="hint">
         保存すると、そのときの数字がそのまま残ります。あとでデータを直しても、当時の姿が見られます。
       </p>
+    </>
+  )
+}
+
+/**
+ * 月ごと・年ごとの推移。
+ *
+ * 週次は「来週どうするか」を決めるためのものだが、こちらは
+ * **続いているかどうか**を見るためのもの。だから細かい所見は出さず、
+ * 数字と推移をそのまま見せる。
+ */
+function Periodic({ kind }: { kind: 'month' | 'year' }) {
+  const { data } = useApp()
+  const today = todayKey()
+  const [workouts, setWorkouts] = useState<WorkoutDay[] | null>(null)
+
+  const buckets: Bucket[] = useMemo(
+    () => (kind === 'month' ? monthBuckets(today, 6) : yearBuckets(today, 3)),
+    [kind, today],
+  )
+
+  useEffect(() => {
+    if (!data.settings.useKintore) {
+      setWorkouts(null)
+      return
+    }
+    let alive = true
+    void loadKintoreRange(buckets[0].from, buckets.at(-1)!.to).then((w) => {
+      if (alive) setWorkouts(w)
+    })
+    return () => {
+      alive = false
+    }
+  }, [buckets, data.settings.useKintore])
+
+  const stats = useMemo(
+    () =>
+      buildStats({
+        buckets,
+        logs: data.logs,
+        sessions: data.sessions,
+        nodes: data.nodes,
+        plans: data.plans,
+        workouts,
+      }),
+    [buckets, data.logs, data.sessions, data.nodes, data.plans, workouts],
+  )
+
+  const total = totalOf(stats)
+  const trend = trendOf(stats)
+  const latest = stats.at(-1)
+
+  return (
+    <>
+      <div className="row">
+        <strong className="grow">{kind === 'month' ? '月ごとの推移' : '年ごとの推移'}</strong>
+        <span className="dim">
+          {buckets[0].label}〜{buckets.at(-1)!.label}
+        </span>
+      </div>
+
+      {trend && <Banner>{trend}</Banner>}
+
+      <section className="bucket">
+        <h2 className="section">動かした時間</h2>
+        <BarChart stats={stats} />
+      </section>
+
+      {latest && (
+        <section className="bucket">
+          <h2 className="section">{latest.bucket.label}</h2>
+          <div className="stats">
+            <Stat k="合計" v={formatDuration(latest.totalMin)} />
+            <Stat
+              k="完了率"
+              v={latest.planned > 0 ? `${Math.round((latest.done / latest.planned) * 100)}%` : '—'}
+            />
+            <Stat k="習得" v={`${latest.masteredCount}`} />
+          </div>
+          {latest.byArea.length > 0 && (
+            <div className="timeline">
+              {latest.byArea.map(([area, min]) => (
+                <div key={area} className="blk">
+                  <span className="blk-time">{AREA_LABELS[area] ?? area}</span>
+                  <span className="blk-title">{formatDuration(min)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {total && (
+        <section className="bucket">
+          <h2 className="section">この期間の合計</h2>
+          <div className="stats">
+            <Stat k="タスク" v={formatDuration(total.taskMin)} />
+            <Stat k="学習" v={formatDuration(total.studyMin)} />
+            <Stat k="筋トレ" v={`${total.workoutCount}回`} />
+          </div>
+          <p className="dim">
+            予定 {total.planned}件 / 完了 {total.done}件 ・ 習得 {total.masteredCount}項目
+          </p>
+        </section>
+      )}
+
+      {!workouts && data.settings.useKintore && (
+        <p className="hint">筋トレログを読めていないため、筋トレのぶんは入っていません。</p>
+      )}
     </>
   )
 }

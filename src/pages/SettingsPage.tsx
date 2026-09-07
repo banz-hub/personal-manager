@@ -9,6 +9,7 @@ import {
 } from '../lib/reminders'
 import { loadYoteichoDay } from '../lib/bridge/yoteicho'
 import { todayKey } from '../lib/date'
+import { BACKUP_INTERVAL_DAYS } from '../lib/routine'
 import { backupFilename, buildBackup, parseBackup } from '../lib/storage'
 import { useApp } from '../state/AppContext'
 
@@ -73,6 +74,9 @@ export default function SettingsPage() {
     a.download = backupFilename()
     a.click()
     URL.revokeObjectURL(url)
+    // 催促の間隔を数えるために、書き出した日を覚えておく
+    setSettings({ lastBackupOn: todayKey() })
+    setMessage('書き出しました')
   }
 
   const importJson = async (file: File) => {
@@ -246,6 +250,23 @@ export default function SettingsPage() {
       </section>
 
       <section className="bucket">
+        <h2 className="section">案内</h2>
+        <label className="row tight">
+          <input
+            type="checkbox"
+            style={{ width: 'auto' }}
+            checked={s.showRoutine}
+            onChange={(e) => setSettings({ showRoutine: e.target.checked })}
+          />
+          <span>朝と夜に「次にこれを押す」を出す</span>
+        </label>
+        <p className="hint">
+          時間帯に合わせて 1 つだけ出します。押すものが無いときは何も出しません。
+          データの書き出しから{BACKUP_INTERVAL_DAYS}日たつと、ここでも催促します。
+        </p>
+      </section>
+
+      <section className="bucket">
         <h2 className="section">通知</h2>
         <label className="row tight">
           <input
@@ -323,6 +344,7 @@ export default function SettingsPage() {
         <p className="hint">
           データは端末のブラウザの中にしかありません。iOS は長く開かないと消すことがあるので、
           月に一度は書き出して private リポジトリに置いてください。
+          {s.lastBackupOn ? ` 最後に書き出したのは ${s.lastBackupOn} です。` : ' まだ一度も書き出していません。'}
         </p>
         <button
           type="button"

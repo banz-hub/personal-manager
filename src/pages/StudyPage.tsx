@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { blankExam, blankNode, ExamForm, NodeForm } from '../components/StudyForms'
+import { blankExam, blankNode, BulkAddForm, ExamForm, NodeForm } from '../components/StudyForms'
 import { Banner, Empty, Sheet, Stat } from '../components/ui'
 import { formatDuration, todayKey } from '../lib/date'
 import {
@@ -30,6 +30,7 @@ export default function StudyPage() {
   const [editingNode, setEditingNode] = useState<StudyNode | null>(null)
   const [editingExam, setEditingExam] = useState<Exam | null>(null)
   const [open, setOpen] = useState<Set<string>>(new Set())
+  const [bulkParent, setBulkParent] = useState<StudyNode | null>(null)
   const today = todayKey()
 
   const { nodes, exams, sessions } = data
@@ -67,6 +68,22 @@ export default function StudyPage() {
 
   const setMastery = (node: StudyNode, mastery: Mastery) => {
     upsert('nodes', { ...node, mastery })
+  }
+
+  /** 同じ親のなかで、ひとつ上/下に動かす */
+  const move = (node: StudyNode, delta: number) => {
+    const siblings = childrenOf(nodes, node.parentId)
+    const i = siblings.findIndex((n) => n.id === node.id)
+    const j = i + delta
+    if (i < 0 || j < 0 || j >= siblings.length) return
+    // order を振り直す。歯抜けのまま動かすと順番が安定しない
+    const reordered = [...siblings]
+    ;[reordered[i], reordered[j]] = [reordered[j], reordered[i]]
+    const byId = new Map(reordered.map((n, k) => [n.id, k]))
+    replaceList(
+      'nodes',
+      nodes.map((n) => (byId.has(n.id) ? { ...n, order: byId.get(n.id) as number } : n)),
+    )
   }
 
   return (
@@ -173,6 +190,8 @@ export default function StudyPage() {
                 onAddChild={(parent) =>
                   setEditingNode(blankNode(parent.id, childrenOf(nodes, parent.id).length))
                 }
+                onBulkAdd={setBulkParent}
+                onMove={move}
                 onMastery={setMastery}
               />
             ))}
@@ -193,6 +212,22 @@ export default function StudyPage() {
             }}
             onCancel={() => setEditingNode(null)}
             onDelete={deleteNode}
+          />
+        </Sheet>
+      )}
+
+      {bulkParent && (
+        <Sheet onClose={() => setBulkParent(null)}>
+          <BulkAddForm
+            parent={bulkParent}
+            nodes={nodes}
+            onSave={(created) => {
+              // まとめて入れるので一度に置き換える (1件ずつだと取りこぼす)
+              replaceList('nodes', [...nodes, ...created])
+              setOpen((prev) => new Set(prev).add(bulkParent.id))
+              setBulkParent(null)
+            }}
+            onCancel={() => setBulkParent(null)}
           />
         </Sheet>
       )}
@@ -227,6 +262,8 @@ function TreeNode({
   onToggle,
   onEdit,
   onAddChild,
+  onBulkAdd,
+  onMove,
   onMastery,
 }: {
   node: StudyNode
@@ -237,6 +274,8 @@ function TreeNode({
   onToggle: (id: string) => void
   onEdit: (n: StudyNode) => void
   onAddChild: (n: StudyNode) => void
+  onBulkAdd: (n: StudyNode) => void
+  onMove: (n: StudyNode, delta: number) => void
   onMastery: (n: StudyNode, m: Mastery) => void
 }) {
   const children = childrenOf(nodes, node.id)
@@ -292,14 +331,42 @@ function TreeNode({
           </span>
         </button>
 
-        <button
-          type="button"
-          className="btn ghost sm"
-          title="下に足す"
-          onClick={() => onAddChild(node)}
-        >
-          ＋
-        </button>
+        <span className="row tight" style={{ gap: 2 }}>
+          <button
+            type="button"
+            className="btn ghost sm"
+            title="上へ"
+            onClick={() => onMove(node, -1)}
+          >
+            ▲
+          </button>
+          <button
+            type="button"
+            className="btn ghost sm"
+            title="下へ"
+            onClick={() => onMove(node, 1)}
+          >
+            ▼
+          </button>
+          <button
+            type="button"
+            className="btn ghost sm"
+            title="下に足す"
+            onClick={() => onAddChild(node)}
+          >
+            ＋
+          </button>
+          {!leaf && (
+            <button
+              type="button"
+              className="btn ghost sm"
+              title="まとめて追加"
+              onClick={() => onBulkAdd(node)}
+            >
+              ≡
+            </button>
+          )}
+        </span>
       </div>
 
       {/* 葉は理解度をその場で変えられるようにする。編集画面を開かせると続かない */}
@@ -331,6 +398,8 @@ function TreeNode({
             onToggle={onToggle}
             onEdit={onEdit}
             onAddChild={onAddChild}
+            onBulkAdd={onBulkAdd}
+            onMove={onMove}
             onMastery={onMastery}
           />
         ))}

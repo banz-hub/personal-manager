@@ -3,7 +3,8 @@ import { todayKey } from '../lib/date'
 import { newId } from '../lib/id'
 import { parseTaskInput } from '../lib/parse'
 import { Field } from './ui'
-import type { Importance, Task, TaskArea } from '../types'
+import { repeatLabel } from '../lib/repeat'
+import type { Importance, Task, TaskArea, TaskRepeat } from '../types'
 import { AREA_LABELS, IMPORTANCE_LABELS } from '../types'
 
 export function blankTask(): Task {
@@ -23,6 +24,8 @@ interface Props {
   onSave: (task: Task) => void
   onCancel: () => void
   onDelete?: (id: string) => void
+  /** 手順に分ける画面を開く。新しいタスクでは出さない */
+  onDecompose?: (task: Task) => void
 }
 
 /**
@@ -30,7 +33,7 @@ interface Props {
  * まず一文で書いてもらい、読み取れたものを埋めた状態で細かい欄を出す。
  * 読み取れなかった項目は「確認してください」と明示する (黙って推測で埋めない)。
  */
-export default function TaskForm({ initial, onSave, onCancel, onDelete }: Props) {
+export default function TaskForm({ initial, onSave, onCancel, onDelete, onDecompose }: Props) {
   const isNew = initial.title === ''
   const [raw, setRaw] = useState('')
   const [task, setTask] = useState<Task>(initial)
@@ -189,9 +192,94 @@ export default function TaskForm({ initial, onSave, onCancel, onDelete }: Props)
         </p>
       )}
 
+      <div className="field">
+        <span>繰り返し</span>
+        <div className="row tight">
+          <button
+            type="button"
+            className={`chip${!task.repeat ? ' is-on' : ''}`}
+            onClick={() => patch({ repeat: undefined })}
+          >
+            なし
+          </button>
+          {(['daily', 'weekly', 'monthly'] as const).map((kind) => (
+            <button
+              key={kind}
+              type="button"
+              className={`chip${task.repeat?.kind === kind ? ' is-on' : ''}`}
+              onClick={() =>
+                patch({
+                  repeat:
+                    kind === 'weekly'
+                      ? { kind, days: task.repeat?.days ?? [1] }
+                      : kind === 'monthly'
+                        ? { kind, dayOfMonth: task.repeat?.dayOfMonth ?? 1 }
+                        : { kind },
+                })
+              }
+            >
+              {kind === 'daily' ? '毎日' : kind === 'weekly' ? '毎週' : '毎月'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {task.repeat?.kind === 'weekly' && (
+        <div className="row tight">
+          {['日', '月', '火', '水', '木', '金', '土'].map((label, day) => {
+            const days = task.repeat?.days ?? []
+            const on = days.includes(day)
+            return (
+              <button
+                key={label}
+                type="button"
+                className={`chip${on ? ' is-on' : ''}`}
+                onClick={() =>
+                  patch({
+                    repeat: {
+                      kind: 'weekly',
+                      days: on ? days.filter((d) => d !== day) : [...days, day].sort(),
+                    } as TaskRepeat,
+                  })
+                }
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {task.repeat?.kind === 'monthly' && (
+        <Field label="何日に">
+          <input
+            type="number"
+            min={1}
+            max={31}
+            value={task.repeat.dayOfMonth ?? 1}
+            onChange={(e) =>
+              patch({ repeat: { kind: 'monthly', dayOfMonth: Number(e.target.value) } })
+            }
+          />
+        </Field>
+      )}
+
+      {task.repeat && (
+        <p className="hint">
+          {repeatLabel(task.repeat)}に出てきます。完了すると次の回が自動で作られます。
+          「毎日すこしずつ進める」継続タスクとは別のしくみです。
+        </p>
+      )}
+
       <Field label="メモ">
         <textarea rows={2} value={task.note ?? ''} onChange={(e) => patch({ note: e.target.value })} />
       </Field>
+
+      {onDecompose && !isNew && task.estimateMin >= 30 && (
+        <button type="button" className="btn" onClick={() => onDecompose(task)}>
+          手順に分ける
+        </button>
+      )}
 
       <div className="row">
         <button

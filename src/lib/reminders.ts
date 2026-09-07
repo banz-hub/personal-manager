@@ -15,8 +15,9 @@
  * iPhone は「ホーム画面に追加」して起動した状態でないと、そもそも通知が使えない。
  */
 
-import type { DayPlan, Task } from '../types'
+import type { DayPlan, StudyNode, StudySession, Task } from '../types'
 import { formatDuration, parseDate, toMinutes } from './date'
+import { allLeaves, buildProgress, isReviewDue } from './study'
 
 export interface NotificationSupport {
   supported: boolean
@@ -184,6 +185,11 @@ export interface ReminderInput {
   tasks: Task[]
   /** コマの何分前に知らせるか */
   beforeMin: number
+  /** 復習の予定日を知らせるために使う */
+  nodes?: StudyNode[]
+  sessions?: StudySession[]
+  /** 復習を知らせる時刻。既定は活動を始める時刻 */
+  reviewAt?: string
 }
 
 function at(date: string, hhmm: string, offsetMin = 0): Date {
@@ -224,6 +230,24 @@ export function buildReminders(input: ReminderInput): PendingReminder[] {
       body: `${t.dueTime} が締切です`,
       popup: true,
     })
+  }
+
+  // 復習の予定日が来た学習項目。1件ずつ鳴らすとうるさいので、まとめて1件にする
+  if (input.nodes && input.sessions) {
+    const progress = buildProgress(input.nodes, input.sessions, input.date)
+    const due = allLeaves(input.nodes).filter((n) => {
+      const p = progress.get(n.id)
+      return p != null && isReviewDue(p, input.date)
+    })
+    if (due.length > 0) {
+      out.push({
+        key: 'review-due',
+        at: at(input.date, input.reviewAt ?? '09:00'),
+        title: `復習の日が来た項目が${due.length}件あります`,
+        body: due.slice(0, 3).map((n) => n.title).join('、') + (due.length > 3 ? ' ほか' : ''),
+        popup: true,
+      })
+    }
   }
 
   return out

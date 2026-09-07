@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import TaskForm, { blankTask } from '../components/TaskForm'
 import { Banner, Empty, Popup, Sheet, Stat } from '../components/ui'
 import { loadKintoreDay, type KintoreDay } from '../lib/bridge/kintore'
@@ -30,7 +31,19 @@ import {
   workMinutes,
   type FreeSlot,
 } from '../lib/scheduler'
+import { ask, EXAMPLES, type Answer } from '../lib/ask'
 import { nextActionFor, selectionSummary } from '../lib/jobhunt'
+import {
+  insertBlock,
+  nudgeBlock,
+  removeBlock,
+  resizeBlock,
+  unplaced,
+  NUDGE_MIN,
+} from '../lib/planedit'
+import { applyImport, linkedCount, parsePlanText, type ImportResult } from '../lib/importplan'
+import { nextOccurrence } from '../lib/repeat'
+import { needsTriage, nextStep, type RoutineStep, type StepKind } from '../lib/routine'
 import {
   buildPlanIcs,
   buildReminders,
@@ -56,6 +69,7 @@ import {
   STAGE_LABELS,
   type Mastery,
   type PlanBlock,
+  type StudyNode,
   type Task,
 } from '../types'
 
@@ -72,9 +86,12 @@ export default function TodayPage() {
   const [writeBack, setWriteBack] = useState<WriteBackPlan | null>(null)
   const [writeMessage, setWriteMessage] = useState('')
   const [popup, setPopup] = useState<PendingReminder | null>(null)
+  const [editingPlan, setEditingPlan] = useState(false)
+  const [importing, setImporting] = useState(false)
 
   const date = todayKey()
   const settings = data.settings
+  const navigate = useNavigate()
 
   // 「推奨開始 18:00」がずれないよう、現在時刻を定期的に更新する
   useEffect(() => {
@@ -168,9 +185,26 @@ export default function TodayPage() {
   const reminders = useMemo(
     () =>
       settings.notifyEnabled
-        ? buildReminders({ date, plan, tasks: data.tasks, beforeMin: settings.notifyBeforeMin })
+        ? buildReminders({
+            date,
+            plan,
+            tasks: data.tasks,
+            beforeMin: settings.notifyBeforeMin,
+            nodes: data.nodes,
+            sessions: data.sessions,
+            reviewAt: settings.dayStart,
+          })
         : [],
-    [settings.notifyEnabled, settings.notifyBeforeMin, date, plan, data.tasks],
+    [
+      settings.notifyEnabled,
+      settings.notifyBeforeMin,
+      settings.dayStart,
+      date,
+      plan,
+      data.tasks,
+      data.nodes,
+      data.sessions,
+    ],
   )
 
   useEffect(() => {
@@ -231,7 +265,17 @@ export default function TodayPage() {
       const task = data.tasks.find((t) => t.id === block.taskId)
       if (task) {
         const { task: nextTask, log } = completeWork(task, actualMin, plannedMin, date, finish)
-        upsert('tasks', nextTask)
+        // 繰り返しのタスクは、終えたら次の回を作る
+        const repeated =
+          nextTask.status === 'done' ? nextOccurrence(nextTask, date, new Date().toISOString()) : null
+        if (repeated) {
+          replaceList('tasks', [
+            ...data.tasks.map((t) => (t.id === nextTask.id ? nextTask : t)),
+            repeated,
+          ])
+        } else {
+          upsert('tasks', nextTask)
+        }
         upsert('logs', log)
       }
     }
@@ -245,6 +289,18 @@ export default function TodayPage() {
       })
     }
     setFinishing(null)
+  }
+
+  // 予定表の手直し。重なりと時刻の逆転は planedit 側で防いである
+  const editPlan = (next: typeof plan) => {
+    if (next && plan && next !== plan) upsert('plans', next)
+  }
+  const addToPlan = (refId: string) => {
+    if (!plan) return
+    const item = ctx.schedulable.find((s) => s.refId === refId)
+    if (!item) return
+    const next = insertBlock(plan, item, settings.dayStart, settings.dayEnd)
+    if (next) upsert('plans', next)
   }
 
   const copyContext = async () => {
@@ -306,12 +362,36 @@ export default function TodayPage() {
   // 就活の締切は 3 日以内と期限切れだけ今日の画面に出す (先の予定まで並べると埋もれる)
   const nearSelections = ctx.selections.filter((d) => d.urgency !== 'later')
 
+  const routine = nextStep({
+    now,
+    today: date,
+    plan,
+    reviewed: data.reviews.some((r) => r.date === date),
+    hasUndone: workCount.some((b) => !isBlockDone(b)),
+    settings,
+    hasTasks: data.tasks.length > 0,
+  })
+  const triage = needsTriage(ctx.buckets.overdue.length)
+
+  const runRoutine = (kind: StepKind) => {
+    if (kind === 'plan') {
+      if (data.tasks.length === 0) setEditing(blankTask())
+      else generate()
+    } else if (kind === 'review' || kind === 'carry') {
+      navigate('/review')
+    } else if (kind === 'backup') {
+      navigate('/settings')
+    }
+  }
+
   return (
     <div className="page">
       <div className="row">
         <strong className="grow">{formatDate(date)}</strong>
         <span className="dim">{fromMinutes(now)} 現在</span>
       </div>
+
+      <RoutineCard step={routine} onAction={runRoutine} />
 
       {/* --- 一画面で今日をつかむ --- */}
       <Dashboard
@@ -325,6 +405,16 @@ export default function TodayPage() {
       <Banner>{explainTop(ctx.ranked)}</Banner>
       {ctx.study.length > 0 && <Banner>{explainStudy(ctx.study)}</Banner>}
       {ctx.easedNote && <Banner alert>{ctx.easedNote}</Banner>}
+      {triage && (
+        <Banner alert>
+          {triage}
+          <div className="row tight" style={{ marginTop: 8 }}>
+            <button type="button" className="btn sm" onClick={() => navigate('/tasks?filter=overdue')}>
+              期限切れを片づける
+            </button>
+          </div>
+        </Banner>
+      )}
 
       {urgentExam && (
         <Banner alert>
@@ -447,6 +537,15 @@ export default function TodayPage() {
           {plan && (
             <button
               type="button"
+              className={`btn sm${editingPlan ? ' primary' : ''}`}
+              onClick={() => setEditingPlan((v) => !v)}
+            >
+              {editingPlan ? '直し終わり' : '手で直す'}
+            </button>
+          )}
+          {plan && (
+            <button
+              type="button"
               className="btn sm"
               title="端末のカレンダーにアラーム付きで入れる"
               onClick={() =>
@@ -516,7 +615,7 @@ export default function TodayPage() {
                     </button>
                   )}
                   {/* 筋トレの記録は筋トレログでつける。ここで二重に入力させない */}
-                  {b.kind === 'workout' && !kintore?.doneToday && (
+                  {b.kind === 'workout' && !kintore?.doneToday && !editingPlan && (
                     <a
                       className="btn sm"
                       href="../kintore-app/"
@@ -527,9 +626,91 @@ export default function TodayPage() {
                       開く
                     </a>
                   )}
+
+                  {/* 手直し。完了済みは実績なので触らせない */}
+                  {editingPlan && !b.doneAt && (
+                    <span className="row tight" style={{ gap: 2 }}>
+                      <button
+                        type="button"
+                        className="btn ghost sm"
+                        title={`${NUDGE_MIN}分はやく`}
+                        onClick={() => editPlan(nudgeBlock(plan, b.id, -NUDGE_MIN))}
+                      >
+                        ◀
+                      </button>
+                      <button
+                        type="button"
+                        className="btn ghost sm"
+                        title={`${NUDGE_MIN}分おそく`}
+                        onClick={() => editPlan(nudgeBlock(plan, b.id, NUDGE_MIN))}
+                      >
+                        ▶
+                      </button>
+                      <button
+                        type="button"
+                        className="btn ghost sm"
+                        title="短くする"
+                        onClick={() => editPlan(resizeBlock(plan, b.id, -NUDGE_MIN))}
+                      >
+                        −
+                      </button>
+                      <button
+                        type="button"
+                        className="btn ghost sm"
+                        title="長くする"
+                        onClick={() => editPlan(resizeBlock(plan, b.id, NUDGE_MIN))}
+                      >
+                        ＋
+                      </button>
+                      <button
+                        type="button"
+                        className="btn ghost sm"
+                        title="消す"
+                        onClick={() => editPlan(removeBlock(plan, b.id))}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
+
+            {editingPlan && (
+              <>
+                <p className="hint">
+                  ◀▶ で {NUDGE_MIN} 分ずらし、−＋ で長さを変えます。ほかのコマと重なる動きはしません。
+                  完了したコマは実績なので触れません。
+                </p>
+                {unplaced(plan, ctx.schedulable).length > 0 && (
+                  <section className="bucket">
+                    <h2 className="section">予定に足す</h2>
+                    {unplaced(plan, ctx.schedulable)
+                      .slice(0, 8)
+                      .map((s) => (
+                        <button
+                          key={`${s.kind}:${s.refId}`}
+                          type="button"
+                          className="task"
+                          style={{ textAlign: 'left', cursor: 'pointer' }}
+                          onClick={() => addToPlan(s.refId)}
+                        >
+                          <span className="task-title">
+                            {s.kind === 'study' && <span className="tag">学習</span>} {s.title}
+                          </span>
+                          <span className="task-meta">
+                            <span>{formatDuration(s.todayMin)}</span>
+                            <span>{s.reason}</span>
+                          </span>
+                        </button>
+                      ))}
+                    <p className="hint">
+                      押すと、空いているいちばん早い時間に入ります。入る場所が無いときは何も起きません。
+                    </p>
+                  </section>
+                )}
+              </>
+            )}
           </>
         )}
       </section>
@@ -667,11 +848,19 @@ export default function TodayPage() {
         )}
       </section>
 
+      <AskBox ctx={ctx} />
+
       <div className="row">
         <button type="button" className="btn ghost grow" onClick={copyContext}>
           {copied ? 'コピーしました' : '今日の状況をコピー（Claude に貼る用）'}
         </button>
+        <button type="button" className="btn ghost" onClick={() => setImporting(true)}>
+          返答を取り込む
+        </button>
       </div>
+      <p className="hint">
+        コピーして Claude に相談し、返ってきた予定を「返答を取り込む」で戻せます。これで往復が閉じます。
+      </p>
 
       {editing && (
         <Sheet onClose={() => setEditing(null)}>
@@ -682,6 +871,12 @@ export default function TodayPage() {
               setEditing(null)
             }}
             onCancel={() => setEditing(null)}
+            onDecompose={(t) => {
+              // 分解はタスクの画面で行う (まとめて作るので一覧が見えたほうがよい)
+              setEditing(null)
+              navigate('/tasks')
+              void t
+            }}
             onDelete={(id) => {
               replaceList(
                 'tasks',
@@ -768,6 +963,18 @@ export default function TodayPage() {
       {/* ブラウザの通知が使えない環境でも、開いてさえいれば必ず目に入るようにする */}
       {popup && (
         <Popup title={popup.title} body={popup.body} onClose={() => setPopup(null)} />
+      )}
+
+      {importing && (
+        <ImportSheet
+          tasks={data.tasks}
+          nodes={data.nodes}
+          onApply={(result) => {
+            upsert('plans', applyImport(plan, result.lines, date))
+            setImporting(false)
+          }}
+          onClose={() => setImporting(false)}
+        />
       )}
 
       {finishing && (
@@ -1064,5 +1271,197 @@ function Dashboard({
         ))}
       </dl>
     </div>
+  )
+}
+
+/**
+ * 朝と夜の案内。
+ * ボタンを自分で探させないための一枚。押すものが無いときは何も出さない。
+ */
+function RoutineCard({
+  step,
+  onAction,
+}: {
+  step: RoutineStep
+  onAction: (kind: StepKind) => void
+}) {
+  if (step.kind === 'none') return null
+  return (
+    <div className={`routine k-${step.kind}`}>
+      <span className="routine-title">{step.title}</span>
+      <span className="dim">{step.body}</span>
+      {step.action && (
+        <button type="button" className="btn primary" onClick={() => onAction(step.kind)}>
+          {step.action}
+        </button>
+      )}
+    </div>
+  )
+}
+
+/**
+ * 「今日どうすればいい？」に答える欄 (第 24 条)。
+ * 中身は LLM ではなく、これまでの判断エンジンへの振り分け。
+ * だから答えられないことは答えられないと言う。
+ */
+function AskBox({ ctx }: { ctx: TodayContext }) {
+  const [question, setQuestion] = useState('')
+  const [answer, setAnswer] = useState<Answer | null>(null)
+  const navigate = useNavigate()
+
+  const run = (q: string) => {
+    const text = q.trim()
+    if (!text) return
+    setQuestion(text)
+    setAnswer(ask(text, ctx))
+  }
+
+  return (
+    <section className="bucket">
+      <h2 className="section">聞く</h2>
+      <div className="row tight">
+        <input
+          className="grow"
+          value={question}
+          placeholder="今日どうすればいい？"
+          onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              run(question)
+            }
+          }}
+        />
+        <button type="button" className="btn sm" onClick={() => run(question)}>
+          聞く
+        </button>
+      </div>
+
+      <div className="chips">
+        {EXAMPLES.map((e) => (
+          <button key={e} type="button" className="chip" onClick={() => run(e)}>
+            {e}
+          </button>
+        ))}
+      </div>
+
+      {answer && (
+        <div className="ask-answer">
+          <strong>{answer.headline}</strong>
+          <ul>
+            {answer.lines.map((l) => (
+              <li key={l}>{l}</li>
+            ))}
+          </ul>
+          {answer.to && (
+            <button type="button" className="btn sm" onClick={() => navigate(answer.to as string)}>
+              その画面を開く
+            </button>
+          )}
+        </div>
+      )}
+      <p className="hint">
+        答えているのはアプリの中の決まりごとで、外部の AI ではありません。
+        深く相談したいときは「今日の状況をコピー」で Claude に渡してください。
+      </p>
+    </section>
+  )
+}
+
+/**
+ * Claude の返した予定を取り込む。
+ *
+ * 書いてあることをそのまま作る。題名から推測して勝手に紐づけたりはしない。
+ * 完全に一致するタスクや学習項目があるときだけ結びつける。
+ */
+function ImportSheet({
+  tasks,
+  nodes,
+  onApply,
+  onClose,
+}: {
+  tasks: Task[]
+  nodes: StudyNode[]
+  onApply: (result: ImportResult) => void
+  onClose: () => void
+}) {
+  const [text, setText] = useState('')
+  const result = useMemo(() => parsePlanText(text, tasks, nodes), [text, tasks, nodes])
+
+  return (
+    <Sheet onClose={onClose}>
+      <div className="row">
+        <strong className="grow">返答を取り込む</strong>
+        <button type="button" className="btn ghost sm" onClick={onClose}>
+          閉じる
+        </button>
+      </div>
+
+      <p className="hint">
+        「19:00〜20:00 数学課題」のように、時刻と題名が並んでいる行を拾います。
+        見出しや説明の行は読み飛ばします。
+      </p>
+
+      <label className="field">
+        <span>貼り付け</span>
+        <textarea
+          rows={8}
+          value={text}
+          placeholder={'19:00〜20:00 数学課題\n20:10〜20:40 開集合\n21:00〜21:20 英語'}
+          onChange={(e) => setText(e.target.value)}
+        />
+      </label>
+
+      {result.lines.length > 0 && (
+        <section className="bucket">
+          <h2 className="section">読み取った予定 {result.lines.length}件</h2>
+          <div className="timeline">
+            {result.lines.map((l) => (
+              <div key={`${l.start}-${l.title}`} className="blk">
+                <span className="blk-time">
+                  {l.start}–{l.end}
+                </span>
+                <span className="blk-title">{l.title}</span>
+                {(l.taskId || l.nodeId) && <span className="tag">紐づけ済み</span>}
+              </div>
+            ))}
+          </div>
+          <p className="hint">
+            {linkedCount(result.lines)}件が既にあるタスク・学習項目と結びつきました。
+            結びついたものだけ、完了したときに実績として記録されます。
+          </p>
+        </section>
+      )}
+
+      {result.overlapping && (
+        <Banner alert>
+          時間が重なっている行があります。そのまま取り込めますが、予定表としては読みにくくなります。
+        </Banner>
+      )}
+
+      {result.skipped.length > 0 && (
+        <Banner alert>
+          読み取れなかった行があります。時刻を「19:00〜20:00」の形にすると読めます。
+          <ul>
+            {result.skipped.slice(0, 4).map((s) => (
+              <li key={s}>{s}</li>
+            ))}
+          </ul>
+        </Banner>
+      )}
+
+      <button
+        type="button"
+        className="btn primary"
+        disabled={result.lines.length === 0}
+        onClick={() => onApply(result)}
+      >
+        {result.lines.length}件を今日の予定にする
+      </button>
+      <p className="hint">
+        いまの予定表は置き換わりますが、<strong>完了したコマは残します。</strong>
+        実績を消してしまわないためです。
+      </p>
+    </Sheet>
   )
 }
