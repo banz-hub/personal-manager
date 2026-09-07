@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Banner, Field } from '../components/ui'
 import { loadKintoreDay } from '../lib/bridge/kintore'
+import {
+  notificationSupport,
+  requestNotificationPermission,
+  showNow,
+  type NotificationSupport,
+} from '../lib/reminders'
 import { loadYoteichoDay } from '../lib/bridge/yoteicho'
 import { todayKey } from '../lib/date'
 import { backupFilename, buildBackup, parseBackup } from '../lib/storage'
@@ -12,6 +18,7 @@ export default function SettingsPage() {
   const [message, setMessage] = useState('')
   const [link, setLink] = useState<string | null>(null)
   const [kintoreLink, setKintoreLink] = useState<string | null>(null)
+  const [notify, setNotify] = useState<NotificationSupport>(() => notificationSupport())
 
   useEffect(() => {
     if (!s.useKintore) {
@@ -204,7 +211,8 @@ export default function SettingsPage() {
         </label>
         {link && <Banner alert={!link.startsWith('つながって')}>{link}</Banner>}
         <p className="hint">
-          読み取りだけで、よてい帳のデータには一切書き込みません。
+          ふだんは読み取りだけです。書き込むのは「今日の予定表」の「よてい帳へ」を押したときだけで、
+          そのときも中身を全部見せてから実行します。手で入れた予定には触れません。
           同じオリジン（banz-hub.github.io）で開いている必要があります。
         </p>
       </section>
@@ -234,6 +242,62 @@ export default function SettingsPage() {
           読み取りだけで、筋トレログのデータには一切書き込みません。
           メニューの中身（種目・セット・重量）は筋トレログの担当なので、司令塔は時間を空けるところまでです。
           トレーニングの記録も筋トレログでつけてください。こちらで二重に入力する必要はありません。
+        </p>
+      </section>
+
+      <section className="bucket">
+        <h2 className="section">通知</h2>
+        <label className="row tight">
+          <input
+            type="checkbox"
+            style={{ width: 'auto' }}
+            checked={s.notifyEnabled}
+            onChange={(e) => setSettings({ notifyEnabled: e.target.checked })}
+          />
+          <span>予定のコマと締切を知らせる</span>
+        </label>
+
+        <Field label={`何分前に知らせるか: ${s.notifyBeforeMin}分`}>
+          <input
+            type="range"
+            min={0}
+            max={30}
+            step={5}
+            value={s.notifyBeforeMin}
+            onChange={(e) => setSettings({ notifyBeforeMin: Number(e.target.value) })}
+          />
+        </Field>
+
+        <Banner alert={notify.permission !== 'granted'}>{notify.note}</Banner>
+
+        <div className="row">
+          {notify.permission !== 'granted' && notify.supported && (
+            <button
+              type="button"
+              className="btn primary grow"
+              onClick={() => {
+                void requestNotificationPermission().then(() => setNotify(notificationSupport()))
+              }}
+            >
+              通知を許可する
+            </button>
+          )}
+          {notify.permission === 'granted' && (
+            <button
+              type="button"
+              className="btn grow"
+              onClick={() => void showNow('テスト通知', 'この形で届きます')}
+            >
+              試しに1件出す
+            </button>
+          )}
+        </div>
+
+        <p className="hint">
+          <strong>アプリを閉じていても確実に鳴らすには、「今日の予定表」の「カレンダーへ」を使ってください。</strong>
+          端末のカレンダーにアラーム付きで入るので、ブラウザを閉じていても鳴ります。
+          ブラウザの通知だけでアプリを閉じた状態に届けるには通知を配るサーバーが要り、
+          このアプリはサーバーを持たないため、そこは端末のカレンダーに任せる作りにしています。
         </p>
       </section>
 
@@ -278,7 +342,8 @@ export default function SettingsPage() {
         <p className="dim">
           タスク {data.tasks.length} / 予定表 {data.plans.length} / 実績ログ {data.logs.length} /
           レビュー {data.reviews.length} / 学習項目 {data.nodes.length} / 試験 {data.exams.length} /
-          学習記録 {data.sessions.length}
+          学習記録 {data.sessions.length} / 企業 {data.companies.length} / 選考の予定{' '}
+          {data.selections.length} / 週次レビュー {data.weeklyReviews.length}
         </p>
       </section>
     </div>

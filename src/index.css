@@ -701,3 +701,46 @@ table.compare td:first-child {
 .nav-label {
   font-size: 10px;
 }
+
+/* ---------- 画面の中のポップ表示 ---------- */
+
+.popup {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  max-width: 616px;
+  margin: 0 auto;
+  z-index: 30;
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  animation: popup-in 0.18s ease-out;
+}
+
+.popup-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+@keyframes popup-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popup {
+    animation: none;
+  }
+}

@@ -45,3 +45,29 @@ export function Field({ label, children }: { label: string; children: ReactNode 
     </label>
   )
 }
+
+/**
+ * 画面の中に出すポップ表示。
+ * ブラウザの通知が使えない環境でも、アプリを開いてさえいれば必ず目に入る。
+ */
+export function Popup({
+  title,
+  body,
+  onClose,
+}: {
+  title: string
+  body: string
+  onClose: () => void
+}) {
+  return (
+    <div className="popup" role="alert">
+      <div className="popup-body">
+        <strong>{title}</strong>
+        <span className="dim">{body}</span>
+      </div>
+      <button type="button" className="btn ghost sm" onClick={onClose}>
+        閉じる
+      </button>
+    </div>
+  )
+}

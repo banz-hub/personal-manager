@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import TaskForm, { blankTask } from '../components/TaskForm'
-import { Banner, Empty, Sheet, Stat } from '../components/ui'
+import { Banner, Empty, Popup, Sheet, Stat } from '../components/ui'
 import { loadKintoreDay, type KintoreDay } from '../lib/bridge/kintore'
 import { loadYoteichoDay, parseManualSlots, type YoteichoDay } from '../lib/bridge/yoteicho'
 import {
@@ -31,6 +31,15 @@ import {
   type FreeSlot,
 } from '../lib/scheduler'
 import { nextActionFor, selectionSummary } from '../lib/jobhunt'
+import {
+  buildPlanIcs,
+  buildReminders,
+  downloadIcs,
+  scheduleBackground,
+  scheduleWhileOpen,
+  showNow,
+  type PendingReminder,
+} from '../lib/reminders'
 import { explainStudy } from '../lib/study'
 import {
   buildContextText,
@@ -62,6 +71,7 @@ export default function TodayPage() {
   const [copied, setCopied] = useState(false)
   const [writeBack, setWriteBack] = useState<WriteBackPlan | null>(null)
   const [writeMessage, setWriteMessage] = useState('')
+  const [popup, setPopup] = useState<PendingReminder | null>(null)
 
   const date = todayKey()
   const settings = data.settings
@@ -152,6 +162,25 @@ export default function TodayPage() {
       plan,
     ],
   )
+
+  // 通知は「閉じていても鳴る予約」と「開いている間のタイマー」の二段構え。
+  // どちらも効かない環境のために、画面の中のポップ表示も出す
+  const reminders = useMemo(
+    () =>
+      settings.notifyEnabled
+        ? buildReminders({ date, plan, tasks: data.tasks, beforeMin: settings.notifyBeforeMin })
+        : [],
+    [settings.notifyEnabled, settings.notifyBeforeMin, date, plan, data.tasks],
+  )
+
+  useEffect(() => {
+    if (reminders.length === 0) return
+    void scheduleBackground(reminders)
+    return scheduleWhileOpen(reminders, (r) => {
+      setPopup(r)
+      void showNow(r.title, r.body)
+    })
+  }, [reminders])
 
   const three = topThreeToday(ctx)
   const active = currentBlock(plan, now)
@@ -415,6 +444,21 @@ export default function TodayPage() {
       <section className="bucket">
         <div className="row">
           <h2 className="section grow">今日の予定表</h2>
+          {plan && (
+            <button
+              type="button"
+              className="btn sm"
+              title="端末のカレンダーにアラーム付きで入れる"
+              onClick={() =>
+                downloadIcs(
+                  `shireitou-${date}.ics`,
+                  buildPlanIcs(plan, date, settings.notifyBeforeMin),
+                )
+              }
+            >
+              カレンダーへ
+            </button>
+          )}
           {plan && yoteicho?.available && (
             <button type="button" className="btn sm" onClick={() => void previewWriteBack()}>
               よてい帳へ
@@ -719,6 +763,11 @@ export default function TodayPage() {
             （次に反映したときに作り直されます）。
           </p>
         </Sheet>
+      )}
+
+      {/* ブラウザの通知が使えない環境でも、開いてさえいれば必ず目に入るようにする */}
+      {popup && (
+        <Popup title={popup.title} body={popup.body} onClose={() => setPopup(null)} />
       )}
 
       {finishing && (

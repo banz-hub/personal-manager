@@ -188,6 +188,10 @@ export interface Settings {
   useKintore: boolean
   /** 前日の負荷が高い日は、詰め込みの上限を自動で下げるか */
   easeAfterWorkout: boolean
+  /** 通知を出すか */
+  notifyEnabled: boolean
+  /** コマの何分前に知らせるか */
+  notifyBeforeMin: number
   updatedAt: string
 }
 
@@ -205,6 +209,8 @@ export const DEFAULT_SETTINGS: Settings = {
   studyPerDayMax: 4,
   useKintore: true,
   easeAfterWorkout: true,
+  notifyEnabled: true,
+  notifyBeforeMin: 10,
   updatedAt: '',
 }
 
