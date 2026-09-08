@@ -846,13 +846,18 @@ export default function TodayPage() {
                       </div>
                     )}
                   </span>
-                  {canRun(b.kind) && !b.doneAt && !editingPlan && (
+                  {(b.kind === 'task' || b.kind === 'study') && !b.doneAt && (
                     <span className="row tight" style={{ gap: 4 }}>
                       {/*
                        * 「今やる」を先に置く。押せば分数は測って出るので、
-                       * 「完了」から入って実績を打ち込む道はできるだけ通らせない
+                       * 「完了」から入って実績を打ち込む道はできるだけ通らせない。
+                       *
+                       * 出すのは記録が残るコマだけ (canRun)。
+                       * よてい帳の趣味・やることは測っても何も残らないので出さない。
+                       * **「完了」はどのコマにも出す。**測らないことと、
+                       * やったことにできないことは別なので。
                        */}
-                      {running?.blockId !== b.id && (
+                      {canRun(b) && running?.blockId !== b.id && !editingPlan && (
                         <button
                           type="button"
                           className="btn primary sm"
@@ -1369,6 +1374,8 @@ function FinishSheet({
   const [attempted, setAttempted] = useState('')
 
   const isStudy = block.kind === 'study'
+  /** 実績のログが作られるコマか。よてい帳から足したものは結びつけ先を持たない */
+  const linked = isStudy ? block.nodeId != null : block.taskId != null
   const score =
     correct !== '' && attempted !== '' && Number(attempted) > 0
       ? { correct: Number(correct), attempted: Number(attempted) }
@@ -1388,10 +1395,17 @@ function FinishSheet({
           {sets ? `・${sets}セット` : ''} 測りました（予定は{formatDuration(planned)}）。
           <div className="hint">合っていなければ下で直せます。</div>
         </Banner>
-      ) : (
+      ) : linked ? (
         <p className="hint">
           予定は{formatDuration(planned)}でした。実際にかかった時間を入れると、
           {isStudy ? '学習時間として記録されます。' : '次回の見積もりが自動で補正されます。'}
+        </p>
+      ) : (
+        // 結びつけ先が無いコマ (よてい帳の趣味・やること) は実績のログを作らない。
+        // 「見積もりが補正されます」と言うと嘘になるので、残る場所をそのまま言う
+        <p className="hint">
+          予定は{formatDuration(planned)}でした。今日の予定表に実績として残ります。
+          よてい帳から足したものなので、見積もりの補正には使いません。
         </p>
       )}
 

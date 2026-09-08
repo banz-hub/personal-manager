@@ -199,19 +199,27 @@ describe('formatRemain', () => {
 })
 
 describe('canRun', () => {
-  it('タスクと学習だけ測る', () => {
-    expect(canRun('task')).toBe(true)
-    expect(canRun('study')).toBe(true)
+  it('結びつけ先があるタスクと学習は測る', () => {
+    expect(canRun({ kind: 'task', taskId: 'tk1' })).toBe(true)
+    expect(canRun({ kind: 'study', nodeId: 'nd1' })).toBe(true)
+  })
+
+  it('よてい帳の趣味・やることから足したコマは測らない', () => {
+    // 種類は「タスク」だが taskId を持たない。正本があちらにあるので
+    // 実績のログが作られず、測っても何も残らない。
+    // 押せるのに残らないほうが分かりにくいので、そもそも出さない
+    expect(canRun({ kind: 'task', title: '読書' } as never)).toBe(false)
+    expect(canRun({ kind: 'study' } as never)).toBe(false)
   })
 
   it('筋トレは測らない。記録は筋トレログの担当で、二重入力になる', () => {
-    expect(canRun('workout')).toBe(false)
+    expect(canRun({ kind: 'workout' } as never)).toBe(false)
   })
 
   it('休憩・予備・動かせない予定は測らない', () => {
-    expect(canRun('break')).toBe(false)
-    expect(canRun('buffer')).toBe(false)
-    expect(canRun('fixed')).toBe(false)
+    expect(canRun({ kind: 'break' } as never)).toBe(false)
+    expect(canRun({ kind: 'buffer' } as never)).toBe(false)
+    expect(canRun({ kind: 'fixed' } as never)).toBe(false)
   })
 })
 

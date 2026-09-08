@@ -26,7 +26,7 @@
  * 推測で実績を作らない、というのはこのアプリ全体で守っていること。
  */
 
-import type { BlockKind, Phase, PlanBlock, Running } from '../types'
+import type { Phase, PlanBlock, Running } from '../types'
 import { todayKey, toMinutes } from './date'
 
 export interface PomodoroConfig {
@@ -223,7 +223,19 @@ export function finishedMessage(kind: Phase['kind'], cfg: PomodoroConfig): { tit
     : { title: '休憩が終わりました', body: `次の${cfg.workMin}分を始めます` }
 }
 
-/** タイマーを出してよいコマか。休憩・予備・筋トレは対象外 */
-export function canRun(kind: BlockKind): boolean {
-  return kind === 'task' || kind === 'study'
+/**
+ * タイマーを出してよいコマか。**記録が残るものだけ測る。**
+ *
+ * 種類が「タスク」かどうかでは決められない。よてい帳の趣味・やることから
+ * 手で足したコマも種類は「タスク」だが、`taskId` を持たない。
+ * あちらが正本で、こちらは読むだけ・書かないと決めてあるので、
+ * 終えても実績のログは作られず、**測っても何も残らない。**
+ * 押せるのに残らないほうが分かりにくいので、そもそも出さない。
+ *
+ * 筋トレも対象外。記録は筋トレログの担当で、二重入力になるため。
+ */
+export function canRun(block: Pick<PlanBlock, 'kind' | 'taskId' | 'nodeId'>): boolean {
+  if (block.kind === 'task') return block.taskId != null
+  if (block.kind === 'study') return block.nodeId != null
+  return false
 }
