@@ -1111,3 +1111,20 @@ table.compare td:first-child {
   text-align: right;
   color: var(--muted);
 }
+
+/* --- 空き時間の使い道 --- */
+/* 空き時間ごとに候補をまとめる。左の線は「この時間帯のぶん」の目印 */
+.freetime {
+  border-left: 2px solid var(--border);
+  padding-left: 10px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.freetime-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}

@@ -35,6 +35,13 @@ export interface TimelineItem {
   event?: EventItem
 }
 
+/** 場所を決めるのに要るぶんだけ。TimelineItem も FixedItem もこれを満たす */
+export interface PlaceSide {
+  spot: SpotKind
+  placeName?: string
+  station?: string
+}
+
 function placeOf(places: Place[], id?: string): Place | undefined {
   return id ? places.find((p) => p.id === id) : undefined
 }
@@ -193,8 +200,14 @@ export function findGaps(items: TimelineItem[], options: GapOptions = {}): Gap[]
   return gaps
 }
 
-/** 前後の予定から、その空き時間に居そうな場所を決める */
-function spotBetween(before?: TimelineItem, after?: TimelineItem): SpotKind {
+/**
+ * 前後の予定から、その空き時間に居そうな場所を決める。
+ *
+ * 引数を TimelineItem そのものではなく必要な 3 つに絞ってあるのは、
+ * エージェント側の橋 (bridge/yoteicho.ts) からも同じ判定を使うため。
+ * 場所の決め方を 2 か所に持つと、同じ空き時間に別の場所が出る。
+ */
+export function spotBetween(before?: PlaceSide, after?: PlaceSide): SpotKind {
   if (!before && !after) return 'home'
   // 朝いちの予定の前、最後の予定の後は自宅にいる想定
   if (!before) return 'home'
@@ -205,7 +218,7 @@ function spotBetween(before?: TimelineItem, after?: TimelineItem): SpotKind {
   return 'outside'
 }
 
-function placeLabelBetween(before?: TimelineItem, after?: TimelineItem): string {
+export function placeLabelBetween(before?: PlaceSide, after?: PlaceSide): string {
   if (!before) return '自宅'
   if (!after) return before.spot === 'home' ? '自宅' : '外出先'
   if (before.placeName && before.placeName === after.placeName) return before.placeName

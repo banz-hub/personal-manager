@@ -15,8 +15,13 @@
 
 import { get } from 'idb-keyval'
 import { yoteiStore as store } from '../../../yotei/bridge'
+import { placeLabelBetween, spotBetween } from '../../../yotei/lib/schedule'
+import type { Interest as YTodoInterest, SpotKind, Todo as YTodo } from '../../../yotei/types'
 import { fromMinutes, parseDate, toMinutes } from '../date'
 import type { FreeSlot } from '../scheduler'
+
+/** 趣味・関心。名前がぶつかるので別名で受ける */
+type YInterest = YTodoInterest
 
 /** よてい帳のデータのうち、こちらが読む部分だけの型 */
 interface YPeriodTime {
@@ -32,6 +37,7 @@ interface YPlace {
   name: string
   station: string
   walkMinutes: number
+  spot?: SpotKind
 }
 interface YCourse {
   id: string
@@ -74,6 +80,10 @@ export interface FixedItem {
   endMin: number
   /** 大学 / バイト先など */
   placeName?: string
+  /** 最寄り駅。前後が同じ駅なら、その空き時間はそこに留まっている */
+  station?: string
+  /** その場所で何ができるか。よてい帳の「やること」の場所と突き合わせる */
+  spot: SpotKind
   kind: 'course' | 'event'
   category?: string
 }
@@ -82,6 +92,10 @@ export interface YoteichoDay {
   available: boolean
   items: FixedItem[]
   slots: FreeSlot[]
+  /** よてい帳の「やること」。正本は向こう。ここでは読むだけ */
+  todos: YTodo[]
+  /** よてい帳の「趣味・関心」。同じく読むだけ */
+  interests: YInterest[]
   /** 読めなかったときの理由 */
   reason?: string
 }
@@ -115,6 +129,8 @@ export function coursesOn(
       startMin: toMinutes(period.start),
       endMin: toMinutes(period.end),
       placeName: place?.name ?? '大学',
+      station: place?.station,
+      spot: place?.spot ?? 'campus',
       kind: 'course',
     })
   }
@@ -142,6 +158,8 @@ export function eventsOn(dateKey: string, events: YEvent[], places: YPlace[]): F
         startMin: toMinutes(e.start),
         endMin: toMinutes(e.end),
         placeName: place?.name ?? e.station,
+        station: place?.station ?? e.station,
+        spot: place?.spot ?? 'outside',
         kind: 'event' as const,
         category: e.category,
       }
@@ -187,7 +205,13 @@ export function findSlots(items: FixedItem[], o: SlotOptions): FreeSlot[] {
     const reserved = moves ? o.travelAllowanceMin : 0
     const end = to - reserved
     if (end - from < o.minSlotMin) return
-    slots.push({ startMin: from, endMin: end, label: labelFor(before, after) })
+    slots.push({
+      startMin: from,
+      endMin: end,
+      label: labelFor(before, after),
+      spot: spotBetween(before, after),
+      placeLabel: placeLabelBetween(before, after),
+    })
   }
 
   for (const item of merged) {
@@ -215,11 +239,13 @@ function labelFor(before?: FixedItem, after?: FixedItem): string {
  */
 export async function loadYoteichoDay(dateKey: string, o: SlotOptions): Promise<YoteichoDay> {
   try {
-    const [profile, places, courses, events] = await Promise.all([
+    const [profile, places, courses, events, todos, interests] = await Promise.all([
       read<YProfile>('profile'),
       read<YPlace[]>('places'),
       read<YCourse[]>('courses'),
       read<YEvent[]>('events'),
+      read<YTodo[]>('todos'),
+      read<YInterest[]>('interests'),
     ])
 
     if (!profile && !courses?.length && !events?.length) {
@@ -227,6 +253,8 @@ export async function loadYoteichoDay(dateKey: string, o: SlotOptions): Promise<
         available: false,
         items: [],
         slots: [],
+        todos: [],
+        interests: [],
         reason:
           'よてい帳のデータが見つかりません。同じオリジン (banz-hub.github.io) で開いているか確認してください。開発中の localhost ではポートが違うと読めません。',
       }
@@ -237,12 +265,20 @@ export async function loadYoteichoDay(dateKey: string, o: SlotOptions): Promise<
       ...eventsOn(dateKey, events ?? [], places ?? []),
     ].sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin)
 
-    return { available: true, items, slots: findSlots(items, o) }
+    return {
+      available: true,
+      items,
+      slots: findSlots(items, o),
+      todos: todos ?? [],
+      interests: interests ?? [],
+    }
   } catch (e) {
     return {
       available: false,
       items: [],
       slots: [],
+      todos: [],
+      interests: [],
       reason: `よてい帳のデータを読めませんでした (${e instanceof Error ? e.message : String(e)})`,
     }
   }

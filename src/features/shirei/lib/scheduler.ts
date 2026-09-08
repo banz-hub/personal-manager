@@ -12,6 +12,7 @@
  * 優先順位の決め方はここでは持たない (priority.ts と study.ts の担当)。
  */
 
+import type { SpotKind } from '../../yotei/types'
 import type { BlockKind, DayPlan, PlanBlock, Settings } from '../types'
 import { formatDuration, fromMinutes, toMinutes } from './date'
 import { newId } from './id'
@@ -22,6 +23,13 @@ export interface FreeSlot {
   endMin: number
   /** 「大学のあと」など、どこの隙間か分かる名前 */
   label?: string
+  /**
+   * その時間に居そうな場所。よてい帳の「やること」の場所と突き合わせるのに使う。
+   * 手で入れた空き時間には場所の手がかりが無いので、省略できる。
+   */
+  spot?: SpotKind
+  /** 「自宅」「大学」など、上を人が読む形にしたもの */
+  placeLabel?: string
 }
 
 /** 予定表に置けるもの。タスクでも学習項目でも、ここまで揃えば置ける */

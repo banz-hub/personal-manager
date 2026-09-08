@@ -30,6 +30,7 @@ function item(patch: Partial<FixedItem> & { start: string; end: string }): Fixed
     id: patch.start,
     title: '予定',
     kind: 'event',
+    spot: 'outside',
     ...patch,
     // start / end から必ず作り直す
     startMin: sh * 60 + sm,

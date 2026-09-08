@@ -45,6 +45,7 @@ import {
   NUDGE_MIN,
 } from '../lib/planedit'
 import { applyImport, linkedCount, parsePlanText, type ImportResult } from '../lib/importplan'
+import { SOURCE_LABELS, suggestForSlots } from '../lib/freetime'
 import { CLAUDE_PROMPT } from '../lib/prompt'
 import { nextOccurrence } from '../lib/repeat'
 import { needsTriage, nextStep, type RoutineStep, type StepKind } from '../lib/routine'
@@ -106,7 +107,14 @@ export default function TodayPage() {
 
   useEffect(() => {
     if (!settings.useYoteicho) {
-      setYoteicho({ available: false, items: [], slots: [], reason: '連携を切ってあります' })
+      setYoteicho({
+        available: false,
+        items: [],
+        slots: [],
+        todos: [],
+        interests: [],
+        reason: '連携を切ってあります',
+      })
       return
     }
     let alive = true
@@ -222,6 +230,20 @@ export default function TodayPage() {
       void showNow(r.title, r.body)
     })
   }, [reminders])
+
+  // よてい帳の「やること・趣味」を、こちらの空き時間に当てる。読むだけ
+  const freeTime = useMemo(
+    () =>
+      suggestForSlots({
+        slots: ctx.slots,
+        todos: yoteicho?.todos ?? [],
+        interests: yoteicho?.interests ?? [],
+        today: date,
+        // 筋トレなど、この画面がすでに出しているものは重ねない
+        alreadyShown: ctx.schedulable.map((x) => x.title),
+      }),
+    [ctx.slots, ctx.schedulable, yoteicho, date],
+  )
 
   const three = topThreeToday(ctx)
   const active = currentBlock(plan, now)
@@ -553,6 +575,46 @@ export default function TodayPage() {
           </p>
         </details>
       </section>
+
+      {/*
+        --- 空き時間の使い道（よてい帳の「やること・趣味」） ---
+
+        並べているのはよてい帳の suggest.ts。ここでは呼ぶだけ。
+        正本は向こうなので「済み」にするボタンは置かない。
+        置くと同じものを 2 か所から書くことになり、どちらが最後か分からなくなる。
+      */}
+      {freeTime.length > 0 && (
+        <section className="bucket">
+          <h2 className="section">空き時間の使い道</h2>
+          {freeTime.map(({ slot, suggestions }) => (
+            <div key={slot.startMin} className="freetime">
+              <div className="freetime-head">
+                <strong>
+                  {fromMinutes(slot.startMin)}–{fromMinutes(slot.endMin)}
+                </strong>
+                <span className="tag">{formatDuration(minutesOf(slot))}</span>
+                {slot.placeLabel && <span className="dim">{slot.placeLabel}</span>}
+              </div>
+              {suggestions.map((s) => (
+                <div key={s.id} className="task">
+                  <span className="task-title">{s.title}</span>
+                  <span className="task-meta">
+                    <span className="tag">{SOURCE_LABELS[s.source]}</span>
+                    <span className="dim">{s.reason}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          ))}
+          <p className="hint">
+            よてい帳の「やること」と「趣味」から出しています。
+            <strong>済みにするのも、増やすのもよてい帳側です。</strong>
+            <button type="button" className="btn ghost sm" onClick={() => navigate('/yotei/todos')}>
+              やることを開く
+            </button>
+          </p>
+        </section>
+      )}
 
       {/* --- 今日の予定表 --- */}
       <section className="bucket">
