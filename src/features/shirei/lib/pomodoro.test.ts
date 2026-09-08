@@ -10,6 +10,8 @@ import {
   closeNow,
   completedSets,
   formatRemain,
+  measuredMinOn,
+  setsOn,
   openPhase,
   resume,
   skip,
@@ -195,6 +197,56 @@ describe('formatRemain', () => {
     expect(formatRemain(0)).toBe('0:00')
     // マイナスにはしない
     expect(formatRemain(-5000)).toBe('0:00')
+  })
+})
+
+describe('その日のセット数', () => {
+  const D = '2026-09-08'
+
+  it('終えた記録を足す', () => {
+    expect(setsOn(D, [{ date: D, pomodoros: 2 }, { date: D, pomodoros: 1 }])).toBe(3)
+  })
+
+  it('別の日は数えない', () => {
+    expect(setsOn(D, [{ date: '2026-09-07', pomodoros: 5 }, { date: D, pomodoros: 1 }])).toBe(1)
+  })
+
+  it('手で付けた記録は 0 として数える', () => {
+    // タイマーを使っていないので、セットという単位が無い
+    expect(setsOn(D, [{ date: D }, { date: D, pomodoros: 2 }])).toBe(2)
+  })
+
+  it('走っている最中のぶんも足す', () => {
+    // 終わるまで 0 のままだと「3セットやったのに今日0セット」と出てしまう
+    const r = tick(start(block, T0, D), cfg, T0 + 25 * MIN).running
+    expect(setsOn(D, [{ date: D, pomodoros: 2 }], r, cfg)).toBe(3)
+  })
+
+  it('走っているものが別の日のものなら足さない', () => {
+    const r = tick(start(block, T0, '2026-09-07'), cfg, T0 + 25 * MIN).running
+    expect(setsOn(D, [{ date: D, pomodoros: 2 }], r, cfg)).toBe(2)
+  })
+})
+
+describe('その日に測った時間', () => {
+  const D = '2026-09-08'
+
+  it('タイマーで測った記録だけ集める', () => {
+    const min = measuredMinOn(
+      D,
+      [
+        { date: D, actualMin: 30, pomodoros: 1 },
+        // 手で付けた記録。測っていないので入れない
+        { date: D, actualMin: 90 },
+      ],
+      [{ date: D, minutes: 25, pomodoros: 1 }],
+    )
+    expect(min).toBe(55)
+  })
+
+  it('走っている最中のぶんも足す', () => {
+    const r = start(block, T0, D)
+    expect(measuredMinOn(D, [], [], r, T0 + 10 * MIN)).toBe(10)
   })
 })
 

@@ -359,3 +359,38 @@ describe('来週改善すべきこと', () => {
     expect(s.improvements[0]).toContain('予定を作っていません')
   })
 })
+
+describe('集中したセット数', () => {
+  it('タスクと学習の両方から集める', () => {
+    const s = buildWeekly(
+      input({
+        logs: [log({ taskId: 'a', date: MON, pomodoros: 2 })],
+        sessions: [ses({ nodeId: 'open', date: TUE, pomodoros: 3 })],
+        nodes: NODES,
+      }),
+    )
+    expect(s.focusSets).toBe(5)
+  })
+
+  it('手で付けた記録は数えない', () => {
+    // pomodoros を持たない = タイマーを使っていない。セットという単位が無い
+    const s = buildWeekly(
+      input({
+        logs: [log({ taskId: 'a', date: MON }), log({ taskId: 'b', date: TUE, pomodoros: 1 })],
+      }),
+    )
+    expect(s.focusSets).toBe(1)
+  })
+
+  it('週の外は数えない', () => {
+    const s = buildWeekly(
+      input({ logs: [log({ taskId: 'a', date: '2026-09-06', pomodoros: 9 })] }),
+    )
+    expect(s.focusSets).toBe(0)
+  })
+
+  it('週の最終日も入る', () => {
+    const s = buildWeekly(input({ logs: [log({ taskId: 'a', date: SUN, pomodoros: 4 })] }))
+    expect(s.focusSets).toBe(4)
+  })
+})

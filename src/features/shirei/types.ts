@@ -618,6 +618,11 @@ export interface WeeklySummary {
     /** 読めなかったときは null */
     available: boolean
   }
+  /**
+   * タイマーでやりきったセット数。
+   * タイマーより前に作った週次には入っていないので、無いことがある。
+   */
+  focusSets?: number
   improvements: string[]
 }
 

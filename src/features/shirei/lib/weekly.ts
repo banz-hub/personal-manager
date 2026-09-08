@@ -133,6 +133,9 @@ export function buildWeekly(input: WeeklyInput): WeeklySummary {
       restDays: 7 - workoutDates.size,
       available: input.workouts != null,
     },
+    // タスクと学習の両方から集める。どちらも同じ 1 セットとして数える。
+    // 手で付けた記録は pomodoros を持たないので 0 になる
+    focusSets: [...logs, ...sessions].reduce((sum, r) => sum + (r.pomodoros ?? 0), 0),
     improvements: [],
   }
 

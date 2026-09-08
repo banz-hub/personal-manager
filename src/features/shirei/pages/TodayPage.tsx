@@ -47,7 +47,13 @@ import {
   NUDGE_MIN,
 } from '../lib/planedit'
 import { applyImport, linkedCount, parsePlanText, type ImportResult } from '../lib/importplan'
-import { canRun, start as startRun, type PomodoroConfig } from '../lib/pomodoro'
+import {
+  canRun,
+  measuredMinOn,
+  setsOn,
+  start as startRun,
+  type PomodoroConfig,
+} from '../lib/pomodoro'
 import { SOURCE_LABELS, suggestForSlots } from '../lib/freetime'
 import type { Suggestion } from '../../yotei/lib/suggest'
 import { CLAUDE_PROMPT } from '../lib/prompt'
@@ -88,6 +94,8 @@ import {
 export default function TodayPage() {
   const { data, upsert, remove, replaceList } = useApp()
   const [now, setNow] = useState(() => nowMinutes())
+  /** 集中時間の集計に使う。`now` は分単位なので、区間の引き算には使えない */
+  const [nowMs, setNowMs] = useState(() => Date.now())
   const [yoteicho, setYoteicho] = useState<YoteichoDay | null>(null)
   const [kintore, setKintore] = useState<KintoreDay | null>(null)
   const [manual, setManual] = useState('')
@@ -116,9 +124,13 @@ export default function TodayPage() {
   const settings = data.settings
   const navigate = useNavigate()
 
-  // 「推奨開始 18:00」がずれないよう、現在時刻を定期的に更新する
+  // 「推奨開始 18:00」がずれないよう、現在時刻を定期的に更新する。
+  // 測っている最中の合計も、ここに合わせて 1 分ごとに新しくする
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(nowMinutes()), 60_000)
+    const timer = window.setInterval(() => {
+      setNow(nowMinutes())
+      setNowMs(Date.now())
+    }, 60_000)
     return () => window.clearInterval(timer)
   }, [])
 
@@ -348,6 +360,29 @@ export default function TodayPage() {
     breakMin: settings.pomodoroBreakMin,
   }
 
+  /**
+   * 今日の集中の合計。走っている最中のぶんも入れる。
+   * 終えるまで 0 のままだと、3 セットやったあとに「今日 0 セット」と出てしまう。
+   */
+  const todayFocus = useMemo(
+    () => ({
+      sets: setsOn(date, [...data.logs, ...data.sessions], running, {
+        workMin: settings.pomodoroWorkMin,
+        breakMin: settings.pomodoroBreakMin,
+      }),
+      minutes: measuredMinOn(date, data.logs, data.sessions, running, nowMs),
+    }),
+    [
+      date,
+      data.logs,
+      data.sessions,
+      running,
+      nowMs,
+      settings.pomodoroWorkMin,
+      settings.pomodoroBreakMin,
+    ],
+  )
+
   const startBlock = useCallback(
     (b: PlanBlock) => {
       // 2 つ同時に走らせない。どちらの時間なのか分からなくなる
@@ -567,6 +602,8 @@ export default function TodayPage() {
         kintore={kintore}
         doneCount={doneCount}
         totalCount={workCount.length}
+        sets={todayFocus.sets}
+        measuredMin={todayFocus.minutes}
       />
 
       {/* --- 何をすべきか、を最初に --- */}
@@ -1500,11 +1537,17 @@ function Dashboard({
   kintore,
   doneCount,
   totalCount,
+  sets,
+  measuredMin,
 }: {
   ctx: TodayContext
   kintore: KintoreDay | null
   doneCount: number
   totalCount: number
+  /** 今日のセット数。走っている最中のぶんも入っている */
+  sets: number
+  /** 今日タイマーで測った時間 (分) */
+  measuredMin: number
 }) {
   const nextFixed = ctx.fixed.find((f) => f.endMin > ctx.now)
   const nearestExam = ctx.examPlans[0]
@@ -1571,6 +1614,16 @@ function Dashboard({
           : kintore.plannedToday
             ? `今日やる（見込み ${formatDuration(kintore.estimateMin)}）`
             : '今日は休み',
+    },
+    {
+      icon: '⏱',
+      label: '集中',
+      // セットは「集中を最後まで保てたか」を見る数字なので、
+      // 貯めるだけで出さないと数える意味が無い
+      value:
+        sets > 0 || measuredMin > 0
+          ? `${sets}セット・${formatDuration(measuredMin)}`
+          : 'まだ測っていません',
     },
     {
       icon: '📊',

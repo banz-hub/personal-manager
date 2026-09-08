@@ -409,6 +409,25 @@ function Weekly() {
       </section>
 
       <section className="bucket">
+        <h2 className="section">集中</h2>
+        {summary.focusSets == null ? (
+          // タイマーより前に作った週次。0 と出すと「その週はやらなかった」に見える
+          <Empty>この週はタイマーがまだありませんでした</Empty>
+        ) : (
+          <>
+            <div className="stats">
+              <Stat k="セット" v={`${summary.focusSets}`} />
+              <Stat k="1日あたり" v={(summary.focusSets / 7).toFixed(1)} />
+            </div>
+            <p className="hint">
+              25分を最後までやりきった回数です。途中で切ったぶんは時間には入りますが、
+              セットには数えていません。
+            </p>
+          </>
+        )}
+      </section>
+
+      <section className="bucket">
         <h2 className="section">就活</h2>
         <div className="stats">
           <Stat k="ES" v={`${summary.jobhunt.esCount}`} />

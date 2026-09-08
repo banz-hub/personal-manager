@@ -223,6 +223,57 @@ export function finishedMessage(kind: Phase['kind'], cfg: PomodoroConfig): { tit
     : { title: '休憩が終わりました', body: `次の${cfg.workMin}分を始めます` }
 }
 
+/** セット数を持ちうる記録。TaskLog と StudySession の共通部分だけ見る */
+export interface SetBearing {
+  date: string
+  pomodoros?: number
+}
+
+/**
+ * その日に貯まったセット数。
+ *
+ * **走っている最中のぶんも足す。**終わるまで 0 のままだと、
+ * 3 セットやったあとに画面を見て「今日 0 セット」と出ることになる。
+ * 記録に残るのは終えたときだが、**やった事実はもう起きている。**
+ *
+ * `pomodoros` を持たない記録は手で付けたもの。0 として数える
+ * (タイマーを使っていないので、セットという単位が無い)。
+ */
+export function setsOn(
+  date: string,
+  records: SetBearing[],
+  running?: Running | null,
+  cfg?: PomodoroConfig,
+): number {
+  const saved = records
+    .filter((r) => r.date === date)
+    .reduce((sum, r) => sum + (r.pomodoros ?? 0), 0)
+  const live = running && cfg && running.date === date ? completedSets(running, cfg) : 0
+  return saved + live
+}
+
+/**
+ * その日にタイマーで測った時間 (分)。
+ * 手で付けた記録は入らない。**測った時間だけを集める**ための数字なので、
+ * 「今日どれだけ動いたか」ではなく「今日どれだけ測れたか」を表す。
+ */
+export function measuredMinOn(
+  date: string,
+  logs: Array<SetBearing & { actualMin: number }>,
+  sessions: Array<SetBearing & { minutes: number }>,
+  running?: Running | null,
+  nowMs?: number,
+): number {
+  const fromLogs = logs
+    .filter((l) => l.date === date && l.pomodoros != null)
+    .reduce((sum, l) => sum + l.actualMin, 0)
+  const fromSessions = sessions
+    .filter((s) => s.date === date && s.pomodoros != null)
+    .reduce((sum, s) => sum + s.minutes, 0)
+  const live = running && nowMs != null && running.date === date ? workedMin(running, nowMs) : 0
+  return fromLogs + fromSessions + live
+}
+
 /**
  * タイマーを出してよいコマか。**記録が残るものだけ測る。**
  *
