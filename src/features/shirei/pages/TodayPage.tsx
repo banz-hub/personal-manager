@@ -797,8 +797,14 @@ export default function TodayPage() {
         </section>
       )}
 
-      {/* --- 今日の予定表 --- */}
-      <section className="bucket">
+      {/*
+        * --- 今日の予定表 ---
+        * この画面でいちばん重要なので、ここだけ枠と色を強くする (`lead`)。
+        * 見出しの見た目が他と同じだと、並んだ節の 1 つに見える。
+        * **強くするのは 1 か所だけ。**2 つ以上あると、
+        * どれを先に見ればいいのか分からなくなる。
+        */}
+      <section className="bucket lead">
         <div className="row">
           <h2 className="section grow">今日の予定表</h2>
           {plan && (

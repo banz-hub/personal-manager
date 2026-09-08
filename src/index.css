@@ -1313,3 +1313,43 @@ table.compare td:first-child {
     transition: none;
   }
 }
+
+/* ---------- いちばん重要な節 ---------- */
+
+/*
+ * 今日の予定表だけ、枠と見出しの色を強くする。
+ *
+ * ほかの節と同じ見た目だと、7 つ並んだうちの 1 つに見える。
+ * この画面は「今日なにをするか」を出すためのものなので、
+ * そこがいちばん先に目に入るようにする。
+ *
+ * **強くするのはここだけ。**2 つ以上を強くすると、
+ * どれを先に見ればいいのか分からなくなって、結局どれも目立たなくなる。
+ */
+.bucket.lead {
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 14px;
+  /* 枠の外にうっすら明かりを置いて、枠線 1 本より前に出て見えるようにする */
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.bucket.lead h2.section {
+  color: var(--accent);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  margin: 0;
+  /*
+   * 見出しは縮めない。横にボタンが 4 つ並ぶので、縮む設定のままだと
+   * iPhone の幅で「今日 / の予 / 定表」と 3 行に割れる。
+   * 入らないぶんはボタンのほうを次の行に送る (.row は折り返す)。
+   */
+  flex: 1 0 auto;
+  white-space: nowrap;
+}
+
+/* 中のコマは、節の地より一段暗く（明るい配色では白く）して浮かせる */
+.bucket.lead .blk {
+  background: var(--surface);
+}
