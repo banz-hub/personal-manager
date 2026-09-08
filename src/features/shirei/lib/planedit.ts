@@ -78,6 +78,66 @@ export function resizeBlock(plan: DayPlan, blockId: string, deltaMin: number): D
 }
 
 /**
+ * 手で足すコマ。
+ *
+ * `Schedulable` と分けてあるのは、よてい帳の「やること・趣味」も
+ * ここから足せるようにするため。あちらはエージェントのタスクでも学習項目でもないので、
+ * 結びつけ先 (taskId / nodeId) を持たない。
+ * `Schedulable` の refId をそのまま taskId に入れると、
+ * 存在しないタスクを指すコマができてしまう。
+ */
+export interface InsertItem {
+  kind: PlanBlock['kind']
+  title: string
+  minutes: number
+  /** エージェントのタスクなら入れる */
+  taskId?: string
+  /** エージェントの学習項目なら入れる */
+  nodeId?: string
+  /** なぜこのコマがあるのか。押した本人にも、あとから見て分かるように */
+  reason?: string
+}
+
+/**
+ * `from`〜`to` の中で空いているいちばん早いところに、コマを足す。
+ * 入る場所が無ければ null を返す (無理やり詰めない)。
+ */
+export function insertBlockAt(
+  plan: DayPlan,
+  item: InsertItem,
+  from: number,
+  to: number,
+): DayPlan | null {
+  const list = sorted(plan.blocks)
+
+  // 既にあるコマの隙間を、早い順に見ていく
+  let cursor = from
+  for (const b of list) {
+    if (toMinutes(b.end) <= from) continue
+    const gap = toMinutes(b.start) - cursor
+    if (gap >= item.minutes) break
+    cursor = Math.max(cursor, toMinutes(b.end))
+  }
+  if (cursor + item.minutes > to) return null
+
+  const block: PlanBlock = {
+    id: newId('blk'),
+    start: fromMinutes(cursor),
+    end: fromMinutes(cursor + item.minutes),
+    kind: item.kind,
+    taskId: item.taskId,
+    nodeId: item.nodeId,
+    title: item.title,
+    reason: item.reason ?? '手で足したコマ',
+  }
+
+  const next = [...plan.blocks, block]
+  if (hasOverlap(next)) return null
+
+  return { ...plan, blocks: sorted(next) }
+}
+
+/**
  * 空いているところを探して、コマを足す。
  * 入る場所が無ければ null を返す (無理やり詰めない)。
  */
@@ -87,34 +147,18 @@ export function insertBlock(
   dayStart: string,
   dayEnd: string,
 ): DayPlan | null {
-  const from = toMinutes(dayStart)
-  const to = toMinutes(dayEnd)
-  const list = sorted(plan.blocks)
-
-  // 既にあるコマの隙間を、早い順に見ていく
-  let cursor = from
-  for (const b of list) {
-    const gap = toMinutes(b.start) - cursor
-    if (gap >= item.todayMin) break
-    cursor = Math.max(cursor, toMinutes(b.end))
-  }
-  if (cursor + item.todayMin > to) return null
-
-  const block: PlanBlock = {
-    id: newId('blk'),
-    start: fromMinutes(cursor),
-    end: fromMinutes(cursor + item.todayMin),
-    kind: item.kind,
-    taskId: item.kind === 'task' ? item.refId : undefined,
-    nodeId: item.kind === 'study' ? item.refId : undefined,
-    title: item.title,
-    reason: '手で足したコマ',
-  }
-
-  const next = [...plan.blocks, block]
-  if (hasOverlap(next)) return null
-
-  return { ...plan, blocks: sorted(next) }
+  return insertBlockAt(
+    plan,
+    {
+      kind: item.kind,
+      title: item.title,
+      minutes: item.todayMin,
+      taskId: item.kind === 'task' ? item.refId : undefined,
+      nodeId: item.kind === 'study' ? item.refId : undefined,
+    },
+    toMinutes(dayStart),
+    toMinutes(dayEnd),
+  )
 }
 
 /** まだ予定に入っていないもの。足す候補として出す */
@@ -172,4 +216,9 @@ export function whyCannotStart(
       toMinutes(b.start) < toMinutes(moved.end),
   )
   return clash ? `「${clash.title}」と重なります` : null
+}
+
+/** 入らなかったときの言い分け。理由を言わずに何も起きないのがいちばん困る */
+export function cannotFit(title: string): string {
+  return `「${title}」を入れる空きがありません。ほかのコマを短くするか、消してから足してください。`
 }

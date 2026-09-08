@@ -4,6 +4,7 @@ import type { Schedulable } from './scheduler'
 import {
   hasOverlap,
   insertBlock,
+  insertBlockAt,
   nudgeBlock,
   removeBlock,
   resizeBlock,
@@ -220,5 +221,69 @@ describe('開始時刻を直接決める', () => {
   it('完了済みなら、そう言う', () => {
     const p = plan([block({ id: 'a', doneAt: 'x' })])
     expect(whyCannotStart(p, 'a', '09:00')).toContain('完了したコマ')
+  })
+})
+
+describe('insertBlockAt', () => {
+  const empty = (): DayPlan => ({
+    id: '2026-09-08',
+    date: '2026-09-08',
+    blocks: [],
+    generatedAt: '',
+    freeMin: 0,
+    fillRatio: 0,
+    notes: [],
+  })
+  const item = { kind: 'task' as const, title: '読書', minutes: 30 }
+
+  it('指定した範囲の頭に置く', () => {
+    // 「この空き時間にこれをやる」と決めて押しているので、
+    // 朝いちの隙間へ飛ばしてはいけない
+    const next = insertBlockAt(empty(), item, 21 * 60, 23 * 60)
+    expect(next?.blocks[0]).toMatchObject({ start: '21:00', end: '21:30', title: '読書' })
+  })
+
+  it('範囲の頭が埋まっていれば後ろにずらす', () => {
+    const plan = empty()
+    plan.blocks = [
+      { id: 'b1', start: '21:00', end: '21:20', kind: 'task', title: '先客' },
+    ]
+    const next = insertBlockAt(plan, item, 21 * 60, 23 * 60)
+    expect(next?.blocks[1]).toMatchObject({ start: '21:20', end: '21:50' })
+  })
+
+  it('範囲に入らなければ何もしない', () => {
+    // 無理やり詰めると、守れない予定ができる
+    expect(insertBlockAt(empty(), item, 21 * 60, 21 * 60 + 20)).toBeNull()
+  })
+
+  it('範囲より前にあるコマは邪魔しない', () => {
+    const plan = empty()
+    plan.blocks = [{ id: 'b1', start: '09:00', end: '20:00', kind: 'task', title: '午前中' }]
+    const next = insertBlockAt(plan, item, 21 * 60, 23 * 60)
+    expect(next?.blocks[1]).toMatchObject({ start: '21:00' })
+  })
+
+  it('よてい帳のやることは結びつけ先を持たない', () => {
+    // refId を taskId に入れると、存在しないタスクを指すコマができる
+    const next = insertBlockAt(
+      empty(),
+      { ...item, reason: 'よてい帳のやることから手で足した' },
+      21 * 60,
+      23 * 60,
+    )
+    expect(next?.blocks[0].taskId).toBeUndefined()
+    expect(next?.blocks[0].nodeId).toBeUndefined()
+    expect(next?.blocks[0].reason).toBe('よてい帳のやることから手で足した')
+  })
+
+  it('学習を足すと結びつけ先が入る', () => {
+    const next = insertBlockAt(
+      empty(),
+      { kind: 'study', title: '開集合', minutes: 30, nodeId: 'n1' },
+      9 * 60,
+      23 * 60,
+    )
+    expect(next?.blocks[0]).toMatchObject({ nodeId: 'n1', kind: 'study' })
   })
 })

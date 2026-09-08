@@ -35,17 +35,19 @@ import {
 import { ask, EXAMPLES, type Answer } from '../lib/ask'
 import { nextActionFor, selectionSummary } from '../lib/jobhunt'
 import {
-  insertBlock,
+  insertBlockAt,
   nudgeBlock,
   removeBlock,
   resizeBlock,
   setBlockStart,
   unplaced,
   whyCannotStart,
+  cannotFit,
   NUDGE_MIN,
 } from '../lib/planedit'
 import { applyImport, linkedCount, parsePlanText, type ImportResult } from '../lib/importplan'
 import { SOURCE_LABELS, suggestForSlots } from '../lib/freetime'
+import type { Suggestion } from '../../yotei/lib/suggest'
 import { CLAUDE_PROMPT } from '../lib/prompt'
 import { nextOccurrence } from '../lib/repeat'
 import { needsTriage, nextStep, type RoutineStep, type StepKind } from '../lib/routine'
@@ -73,6 +75,7 @@ import {
   MASTERY_ORDER,
   STAGE_LABELS,
   type Mastery,
+  type DayPlan,
   type PlanBlock,
   type StudyNode,
   type Task,
@@ -94,6 +97,8 @@ export default function TodayPage() {
   const [popup, setPopup] = useState<PendingReminder | null>(null)
   const [editingPlan, setEditingPlan] = useState(false)
   const [importing, setImporting] = useState(false)
+  // 押しても何も起きないことがある (入る場所が無い)。黙って終わらせない
+  const [addMessage, setAddMessage] = useState('')
 
   const date = todayKey()
   const settings = data.settings
@@ -324,11 +329,66 @@ export default function TodayPage() {
   const editPlan = (next: typeof plan) => {
     if (next && plan && next !== plan) upsert('plans', next)
   }
+  /**
+   * まだ予定表が無ければ空のものを作る。
+   * 「まず組んでから直す」だけでなく「選んだものだけで組む」も通せるようにするため。
+   * ここで作らないと、1 件目を押しても何も起きない。
+   */
+  const planOrEmpty = (): DayPlan =>
+    plan ?? {
+      id: date,
+      date,
+      blocks: [],
+      generatedAt: new Date().toISOString(),
+      freeMin: ctx.availableMin,
+      fillRatio: 0,
+      notes: ['選んだものだけで組んでいます。'],
+    }
+
   const addToPlan = (refId: string) => {
-    if (!plan) return
     const item = ctx.schedulable.find((s) => s.refId === refId)
     if (!item) return
-    const next = insertBlock(plan, item, settings.dayStart, settings.dayEnd)
+    const next = insertBlockAt(
+      planOrEmpty(),
+      {
+        kind: item.kind,
+        title: item.title,
+        minutes: item.todayMin,
+        taskId: item.kind === 'task' ? item.refId : undefined,
+        nodeId: item.kind === 'study' ? item.refId : undefined,
+      },
+      // 今より前には置かない。夕方に押したものが朝 8 時に入っては、
+      // 最初から守れないコマができる
+      Math.max(toMinutes(settings.dayStart), now),
+      toMinutes(settings.dayEnd),
+    )
+    setAddMessage(next ? `「${item.title}」を予定に入れました` : cannotFit(item.title))
+    if (next) upsert('plans', next)
+  }
+
+  /**
+   * よてい帳の「やること・趣味」を、選んだ空き時間に入れる。
+   *
+   * いちばん早い隙間ではなく **その空き時間の中に** 置く。
+   * 「この時間にこれをやる」と決めて押しているのに、
+   * 朝いちの隙間へ飛ばされては選んだ意味が無い。
+   *
+   * 入るのはエージェントの予定表だけで、よてい帳には書かない。
+   * 済みにするのは向こうの担当のまま。
+   */
+  const addSuggestionToPlan = (s: Suggestion, slot: FreeSlot) => {
+    const next = insertBlockAt(
+      planOrEmpty(),
+      {
+        kind: 'task',
+        title: s.title,
+        minutes: Math.min(s.minutes, minutesOf(slot)),
+        reason: `よてい帳の${SOURCE_LABELS[s.source]}から手で足した`,
+      },
+      Math.max(slot.startMin, now),
+      slot.endMin,
+    )
+    setAddMessage(next ? `「${s.title}」を予定に入れました` : cannotFit(s.title))
     if (next) upsert('plans', next)
   }
 
@@ -525,6 +585,18 @@ export default function TodayPage() {
         )}
       </section>
 
+      {/* 押した結果は必ず言う。入る場所が無くて何も起きないのがいちばん困る */}
+      {addMessage && (
+        <Banner>
+          <span className="row tight">
+            <span className="grow">{addMessage}</span>
+            <button type="button" className="btn ghost sm" onClick={() => setAddMessage('')}>
+              閉じる
+            </button>
+          </span>
+        </Banner>
+      )}
+
       {/* --- 空き時間 --- */}
       <section className="bucket">
         <h2 className="section">空き時間</h2>
@@ -596,19 +668,25 @@ export default function TodayPage() {
                 {slot.placeLabel && <span className="dim">{slot.placeLabel}</span>}
               </div>
               {suggestions.map((s) => (
-                <div key={s.id} className="task">
+                <button
+                  type="button"
+                  key={s.id}
+                  className="task tappable"
+                  onClick={() => addSuggestionToPlan(s, slot)}
+                >
                   <span className="task-title">{s.title}</span>
                   <span className="task-meta">
                     <span className="tag">{SOURCE_LABELS[s.source]}</span>
                     <span className="dim">{s.reason}</span>
                   </span>
-                </div>
+                </button>
               ))}
             </div>
           ))}
           <p className="hint">
+            <strong>押すと、その空き時間の予定に入ります。</strong>
             よてい帳の「やること」と「趣味」から出しています。
-            <strong>済みにするのも、増やすのもよてい帳側です。</strong>
+            済みにするのも、増やすのもよてい帳側です。
             <button type="button" className="btn ghost sm" onClick={() => navigate('/yotei/todos')}>
               やることを開く
             </button>
@@ -816,12 +894,19 @@ export default function TodayPage() {
         <section className="bucket">
           <h2 className="section">今日の学習の候補</h2>
           {ctx.study.slice(0, settings.studyPerDayMax).map((s) => (
-            <div key={s.node.id} className={`task m-${s.mastery}`}>
+            <button
+              type="button"
+              key={s.node.id}
+              className={`task tappable m-${s.mastery}`}
+              onClick={() => addToPlan(s.node.id)}
+              disabled={plannedIds.has(s.node.id)}
+            >
               <span className="task-title">{s.node.title}</span>
               <span className="task-meta">
                 {s.path && <span className="tag">{s.path}</span>}
                 <span className={`tag m-${s.mastery}`}>{MASTERY_LABELS[s.mastery]}</span>
                 <span>{formatDuration(s.todayMin)}</span>
+                {plannedIds.has(s.node.id) && <span className="tag">予定に入れた</span>}
                 {s.exam && <span>試験 {s.exam.date}</span>}
                 {s.progress.accuracy != null && (
                   <span>正答{Math.round(s.progress.accuracy * 100)}%</span>
@@ -829,8 +914,12 @@ export default function TodayPage() {
                 {s.progress.staleDays != null && <span>{s.progress.staleDays}日ぶり</span>}
               </span>
               {s.reasons.length > 0 && <span className="reason">{s.reasons.join('・')}</span>}
-            </div>
+            </button>
           ))}
+          <p className="hint">
+            <strong>押すと今日の予定に入ります。</strong>
+            まだ予定表を作っていなければ、押したものだけで作り始めます。
+          </p>
         </section>
       )}
 

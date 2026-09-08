@@ -1128,3 +1128,16 @@ table.compare td:first-child {
   gap: 8px;
   flex-wrap: wrap;
 }
+
+/* 押せる候補。見た目は .task のまま、押せることだけ分かるようにする */
+.task.tappable {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.task.tappable:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
