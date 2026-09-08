@@ -45,6 +45,7 @@ import {
   NUDGE_MIN,
 } from '../lib/planedit'
 import { applyImport, linkedCount, parsePlanText, type ImportResult } from '../lib/importplan'
+import { CLAUDE_PROMPT } from '../lib/prompt'
 import { nextOccurrence } from '../lib/repeat'
 import { needsTriage, nextStep, type RoutineStep, type StepKind } from '../lib/routine'
 import {
@@ -86,6 +87,7 @@ export default function TodayPage() {
   const [editing, setEditing] = useState<Task | null>(null)
   const [finishing, setFinishing] = useState<PlanBlock | null>(null)
   const [copied, setCopied] = useState(false)
+  const [promptCopied, setPromptCopied] = useState(false)
   const [writeBack, setWriteBack] = useState<WriteBackPlan | null>(null)
   const [writeMessage, setWriteMessage] = useState('')
   const [popup, setPopup] = useState<PendingReminder | null>(null)
@@ -315,6 +317,16 @@ export default function TodayPage() {
       window.setTimeout(() => setCopied(false), 2000)
     } catch {
       setCopied(false)
+    }
+  }
+
+  const copyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(CLAUDE_PROMPT)
+      setPromptCopied(true)
+      window.setTimeout(() => setPromptCopied(false), 2000)
+    } catch {
+      setPromptCopied(false)
     }
   }
 
@@ -881,6 +893,25 @@ export default function TodayPage() {
       <p className="hint">
         コピーして Claude に相談し、返ってきた予定を「返答を取り込む」で戻せます。これで往復が閉じます。
       </p>
+
+      {/*
+        指示は状況にくっつけず、別に出す。
+        毎日変わる状況と、一度入れたら変えない指示とで寿命が違うため。
+        たたんであるのは、要るのが最初の一度だけだから。
+      */}
+      <details>
+        <summary className="dim" style={{ cursor: 'pointer' }}>
+          Claude 側の準備（最初の一度だけ）
+        </summary>
+        <p className="hint">
+          Claude にプロジェクトを1つ作り、下の指示をカスタム指示に入れておきます。
+          <strong>入れておけば、以後は状況を貼るだけで取り込める形の予定が返ってきます。</strong>
+          毎回貼らないのは、会話が進むほど同じ指示が積み上がって効きが落ちるためです。
+        </p>
+        <button type="button" className="btn ghost" onClick={copyPrompt}>
+          {promptCopied ? 'コピーしました' : 'Claude への指示をコピー'}
+        </button>
+      </details>
 
       {editing && (
         <Sheet onClose={() => setEditing(null)}>
