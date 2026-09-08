@@ -97,6 +97,19 @@ export interface Task {
 /** 予定表の 1 コマ */
 export type BlockKind = 'task' | 'study' | 'workout' | 'break' | 'buffer' | 'fixed'
 
+/**
+ * コマの種類の呼び名。**色と対にして、必ず文字でも出す。**
+ * 色だけで区別させると、明るい場所・色が見分けにくい目・白黒では意味が消える。
+ */
+export const KIND_LABELS: Record<BlockKind, string> = {
+  task: 'タスク',
+  study: '学習',
+  workout: '筋トレ',
+  break: '休憩',
+  buffer: '予備',
+  fixed: '予定',
+}
+
 export interface PlanBlock {
   id: string
   /** HH:MM */
@@ -145,6 +158,8 @@ export interface TaskLog {
   plannedMin: number
   /** 実際にかかった分数 */
   actualMin: number
+  /** そのうちタイマーでやりきったセット数。手で記録したときは付かない */
+  pomodoros?: number
   createdAt: string
 }
 
@@ -221,6 +236,17 @@ export interface Settings {
   wakeBufferMin: number
   /** 寝る前に必要な支度 (分) */
   bedtimeBufferMin: number
+  /**
+   * タイマー 1 本の作業の長さ (分)。
+   *
+   * `workBeforeBreakMin` (60) とは別に持つ。あちらは**予定表を組むときの**目安で、
+   * 「1 コマをどのくらいの長さで切るか」を決める。こちらは**実行中の**刻みで、
+   * 1 コマの中を何本に割るかを決める。90 分のコマの中でタイマーは 3 本まわる。
+   * 同じ「休憩までの長さ」でも見ている単位が違うので、1 つの数にはまとめない。
+   */
+  pomodoroWorkMin: number
+  /** タイマーの休憩の長さ (分) */
+  pomodoroBreakMin: number
   updatedAt: string
 }
 
@@ -247,7 +273,49 @@ export const DEFAULT_SETTINGS: Settings = {
   wakeBufferMin: 30,
   bedtimeBufferMin: 30,
   showRoutine: true,
+  pomodoroWorkMin: 25,
+  pomodoroBreakMin: 5,
   updatedAt: '',
+}
+
+// ==================== 実行中のタイマー ====================
+
+/**
+ * タイマーの 1 区間。作業か休憩のどちらか。
+ *
+ * **押した時刻をそのまま持つ。**経過分数を数えて足していく作りにしない。
+ * iPhone はアプリを裏に回すと JavaScript を止めるので、
+ * 数えていた側は止まったぶんだけ狂う。時刻どうしの引き算なら狂わない。
+ * （睡眠の記録を区間で持っているのと同じ理由）
+ */
+export interface Phase {
+  kind: 'work' | 'break'
+  /** ISO */
+  startedAt: string
+  /** 閉じるまで未設定。開いているものは 1 つだけ */
+  endedAt?: string
+}
+
+/**
+ * いま走らせている 1 件。**同時に 1 つだけ。**
+ *
+ * 予定表のコマを指すが、題名や種類は**写しを持つ。**
+ * 走っている最中に予定表を作り直しても、測っているものが消えないようにするため。
+ */
+export interface Running {
+  /** 走るのは 1 件だけなので固定。上書きで常に置き換わる */
+  id: 'running'
+  /** 予定表のコマ。予定を作り直すと見つからなくなることがある */
+  blockId: string
+  /** 押した日 (YYYY-MM-DD) */
+  date: string
+  title: string
+  kind: BlockKind
+  taskId?: string
+  nodeId?: string
+  /** そのコマに予定していた分数。実績と比べて見積もりを補正するのに使う */
+  plannedMin: number
+  phases: Phase[]
 }
 
 // ==================== 学習 OS (Phase 2) ====================
@@ -356,6 +424,8 @@ export interface StudySession {
   /** 問題を解いたときだけ */
   correct?: number
   attempted?: number
+  /** そのうちタイマーでやりきったセット数。手で記録したときは付かない */
+  pomodoros?: number
   createdAt: string
   note?: string
 }

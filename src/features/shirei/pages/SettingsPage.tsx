@@ -123,6 +123,39 @@ export default function SettingsPage() {
             />
           </Field>
         </div>
+        <p className="hint">
+          ここは<strong>予定表を組むとき</strong>の目安です（1コマをどのくらいの長さで切るか）。
+          実行中のタイマーの刻みは下で別に決めます。
+        </p>
+
+        <h2 className="section">「今やる」タイマー</h2>
+        <div className="grid2">
+          <Field label="作業1本の長さ(分)">
+            <input
+              type="number"
+              min={5}
+              step={5}
+              value={s.pomodoroWorkMin}
+              onChange={(e) => setSettings({ pomodoroWorkMin: Number(e.target.value) })}
+            />
+          </Field>
+          <Field label="休憩の長さ(分)">
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={s.pomodoroBreakMin}
+              onChange={(e) => setSettings({ pomodoroBreakMin: Number(e.target.value) })}
+            />
+          </Field>
+        </div>
+        <p className="hint">
+          「今やる」を押すと、この長さで作業と休憩を繰り返します。
+          <strong>やりきった回数だけをセットとして数えます。</strong>
+          途中で切ったぶんは、実績の分数には入りますがセットにはしません。
+          長く離れていたときは自動で進めず、続けるかどうかを聞きます
+          （見ていない間を作業にしないため）。
+        </p>
 
         <div className="grid2">
           <Field label="使う空き時間の下限(分)">

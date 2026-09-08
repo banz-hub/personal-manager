@@ -9,6 +9,7 @@ import type {
   StudyNode,
   SleepLog,
   StudySession,
+  Running,
   Task,
   TaskLog,
   WeeklyReview,
@@ -33,6 +34,14 @@ export interface AppData {
   weeklyReviews: WeeklyReview[]
   // --- 睡眠 ---
   sleepLogs: SleepLog[]
+  /**
+   * いま走らせているタイマー。**0 件か 1 件しか入らない。**
+   *
+   * 配列にしてあるのは、AppContext の upsert/remove が
+   * 「id を持つ配列」を前提にしているため。id を 'running' で固定してあるので、
+   * upsert すれば必ず置き換わり、2 件になることはない。
+   */
+  running: Running[]
 }
 
 export const EMPTY_DATA: AppData = {
@@ -48,6 +57,7 @@ export const EMPTY_DATA: AppData = {
   selections: [],
   weeklyReviews: [],
   sleepLogs: [],
+  running: [],
 }
 
 /**
@@ -108,7 +118,15 @@ export interface BackupPayload extends AppData {
 }
 
 export function buildBackup(data: AppData): BackupPayload {
-  return { version: 1, app: 'personal-manager', exportedAt: new Date().toISOString(), ...data }
+  return {
+    version: 1,
+    app: 'personal-manager',
+    exportedAt: new Date().toISOString(),
+    ...data,
+    // 走っている最中のタイマーは書き出さない。
+    // 読み込んだ側で「昨日の 10 時から測っています」と出ても意味が無い
+    running: [],
+  }
 }
 
 export function parseBackup(raw: unknown): AppData {
@@ -131,6 +149,8 @@ export function parseBackup(raw: unknown): AppData {
     weeklyReviews: data.weeklyReviews ?? [],
     // 睡眠より前のバックアップには入っていない
     sleepLogs: data.sleepLogs ?? [],
+    // 読み込みで走り出さない。測るのは「いま押したもの」だけ
+    running: [],
   }
 }
 

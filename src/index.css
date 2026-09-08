@@ -27,6 +27,22 @@
   --optional: #7d8b84;
   --overdue: #d94f6a;
 
+  /*
+   * コマの種類の色。締切の色 (--urgent など) とは別に持つ。
+   * 同じ色で「急ぎ」と「学習」の両方を表すと、
+   * どちらの意味で色を見ればいいのか分からなくなる。
+   * 種類は「左の帯」、締切は「一覧の左の帯」と、出す場所も分けてある。
+   */
+  --k-task: #3ecfae;
+  --k-study: #8f9ef5;
+  --k-workout: #6fc98a;
+  --k-fixed: #7d8b84;
+
+  /* タイマー。作業はオレンジ、休憩は緑 */
+  --timer: #f2903c;
+  --timer-break: #6fc98a;
+  --timer-track: #26332c;
+
   /* 直に書いていた色。明暗で入れ替える必要があるので変数にした */
   --bg-blur: rgba(13, 18, 16, 0.92);
   --bg-blur-strong: rgba(13, 18, 16, 0.96);
@@ -70,6 +86,15 @@
     --routine: #2b8a4d;
     --optional: #6d7a73;
     --overdue: #b52546;
+
+    --k-task: #12876c;
+    --k-study: #4a4fbd;
+    --k-workout: #2b8a4d;
+    --k-fixed: #6d7a73;
+
+    --timer: #c0570b;
+    --timer-break: #2b8a4d;
+    --timer-track: #dfe6e1;
 
     --bg-blur: rgba(242, 245, 243, 0.92);
     --bg-blur-strong: rgba(242, 245, 243, 0.96);
@@ -399,14 +424,62 @@ textarea:focus {
   align-items: start;
   background: var(--surface);
   border: 1px solid var(--line);
+  /* 左の帯で種類を表す。太さは一覧 (.task) と揃える */
+  border-left: 3px solid var(--line);
   border-radius: 8px;
   padding: 10px 12px;
 }
+
+/*
+ * 種類ごとの色。**同じ色を文字のラベルにも付ける**ので、
+ * 色が見分けられなくても「学習」「タスク」と読めば分かる。
+ */
+.blk.k-task {
+  border-left-color: var(--k-task);
+}
+.blk.k-study {
+  border-left-color: var(--k-study);
+}
+.blk.k-workout {
+  border-left-color: var(--k-workout);
+}
+.blk.k-fixed {
+  border-left-color: var(--k-fixed);
+}
+
 .blk.k-break,
 .blk.k-buffer {
   background: transparent;
   border-style: dashed;
   color: var(--muted);
+}
+
+/* 種類のラベル。帯と同じ色にして、色と言葉を結びつける */
+.tag.k-task {
+  color: var(--k-task);
+  border-color: var(--k-task);
+}
+.tag.k-study {
+  color: var(--k-study);
+  border-color: var(--k-study);
+}
+.tag.k-workout {
+  color: var(--k-workout);
+  border-color: var(--k-workout);
+}
+.tag.k-fixed {
+  color: var(--k-fixed);
+}
+
+/* いま時刻が入っているコマ。探さなくても目に入るように */
+.blk.is-now {
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--accent-soft);
+}
+/* 測っている最中のコマ。上の札と同じオレンジで結びつける */
+.blk.is-running {
+  border-color: var(--timer);
+  border-left-color: var(--timer);
 }
 .blk.is-done {
   opacity: 0.5;
@@ -682,11 +755,6 @@ textarea:focus {
   font-size: 13.5px;
   overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
-}
-
-/* 筋トレのコマは、他の作業と見分けがつくように */
-.blk.k-workout {
-  border-left: 3px solid var(--routine);
 }
 
 /* ---------- 就活 ---------- */
@@ -1140,4 +1208,108 @@ table.compare td:first-child {
 .task.tappable:disabled {
   cursor: default;
   opacity: 0.55;
+}
+
+/* ---------- 「今やる」タイマー ---------- */
+
+/*
+ * 走っている札。上端の細い線で、いま作業中か休憩中かを一目で分ける。
+ * 枠ごと色を塗らないのは、文字が読みにくくなるのと、
+ * 画面のいちばん上で面積が大きいので目が疲れるため。
+ */
+.card.pomo {
+  border-top: 3px solid var(--timer);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.card.pomo.k-break {
+  border-top-color: var(--timer-break);
+}
+.card.pomo.is-stalled {
+  border-top-color: var(--muted);
+}
+
+.pomo-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pomo-body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.pomo-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.pomo-sets {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.pomo-sets .v {
+  font-size: 30px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--timer);
+  line-height: 1;
+}
+.pomo-sets .k {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* 円。12 時から時計回りに塗るため、円だけ左に 90 度回す */
+.ring {
+  flex: none;
+  transform: rotate(-90deg);
+}
+.ring-track {
+  stroke: var(--timer-track);
+}
+.ring-fill {
+  stroke: var(--timer);
+  transition: stroke-dashoffset 0.95s linear;
+}
+.ring.k-break .ring-fill {
+  stroke: var(--timer-break);
+}
+.ring.is-stalled .ring-fill {
+  stroke: var(--muted);
+}
+
+/* 文字は回さない。円を戻した向きに置き直す */
+.ring-label,
+.ring-sub {
+  transform: rotate(90deg);
+  transform-origin: center;
+  fill: var(--text);
+}
+.ring-label {
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ring-sub {
+  font-size: 12px;
+  fill: var(--muted);
+}
+
+/*
+ * 1 秒ごとに動く線なので、動きを減らす設定のときは止める。
+ * 塗る量そのものは変わらないので、情報は落ちない。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .ring-fill {
+    transition: none;
+  }
 }

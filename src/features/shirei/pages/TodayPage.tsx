@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import RunningCard from '../components/RunningCard'
 import SleepCard from '../components/SleepCard'
 import TaskForm, { blankTask } from '../components/TaskForm'
 import { Banner, Empty, Popup, Sheet, Stat } from '../components/ui'
@@ -46,6 +47,7 @@ import {
   NUDGE_MIN,
 } from '../lib/planedit'
 import { applyImport, linkedCount, parsePlanText, type ImportResult } from '../lib/importplan'
+import { canRun, start as startRun, type PomodoroConfig } from '../lib/pomodoro'
 import { SOURCE_LABELS, suggestForSlots } from '../lib/freetime'
 import type { Suggestion } from '../../yotei/lib/suggest'
 import { CLAUDE_PROMPT } from '../lib/prompt'
@@ -71,25 +73,35 @@ import {
 import { useApp } from '../state/AppContext'
 import {
   AREA_LABELS,
+  KIND_LABELS,
   MASTERY_LABELS,
   MASTERY_ORDER,
   STAGE_LABELS,
   type Mastery,
   type DayPlan,
   type PlanBlock,
+  type Running,
   type StudyNode,
   type Task,
 } from '../types'
 
 export default function TodayPage() {
-  const { data, upsert, replaceList } = useApp()
+  const { data, upsert, remove, replaceList } = useApp()
   const [now, setNow] = useState(() => nowMinutes())
   const [yoteicho, setYoteicho] = useState<YoteichoDay | null>(null)
   const [kintore, setKintore] = useState<KintoreDay | null>(null)
   const [manual, setManual] = useState('')
   const [manualSlots, setManualSlots] = useState<FreeSlot[] | null>(null)
   const [editing, setEditing] = useState<Task | null>(null)
-  const [finishing, setFinishing] = useState<PlanBlock | null>(null)
+  /**
+   * 完了の記録。タイマーで測ったときは、その分数とセット数も持って来る。
+   * 測った値があるなら**打ち直させない**（思い出しの数字より正しいので）。
+   */
+  const [finishing, setFinishing] = useState<{
+    block: PlanBlock
+    measuredMin?: number
+    sets?: number
+  } | null>(null)
   const [copied, setCopied] = useState(false)
   const [promptCopied, setPromptCopied] = useState(false)
   const [writeBack, setWriteBack] = useState<WriteBackPlan | null>(null)
@@ -285,6 +297,8 @@ export default function TodayPage() {
     finish: boolean,
     mastery?: Mastery,
     score?: { correct: number; attempted: number },
+    /** タイマーでやりきったセット数。手で記録したときは付かない */
+    pomodoros?: number,
   ) => {
     const plannedMin = toMinutes(block.end) - toMinutes(block.start)
 
@@ -293,7 +307,7 @@ export default function TodayPage() {
       if (node) {
         const { node: nextNode, session } = completeStudy(node, actualMin, date, mastery, score)
         upsert('nodes', nextNode)
-        upsert('sessions', session)
+        upsert('sessions', pomodoros ? { ...session, pomodoros } : session)
       }
     } else if (block.taskId) {
       const task = data.tasks.find((t) => t.id === block.taskId)
@@ -310,7 +324,7 @@ export default function TodayPage() {
         } else {
           upsert('tasks', nextTask)
         }
-        upsert('logs', log)
+        upsert('logs', pomodoros ? { ...log, pomodoros } : log)
       }
     }
 
@@ -323,6 +337,48 @@ export default function TodayPage() {
       })
     }
     setFinishing(null)
+  }
+
+  // ---------- 「今やる」タイマー ----------
+
+  /** 走っているものは 1 件だけ。無ければ null */
+  const running: Running | null = data.running[0] ?? null
+  const pomoCfg: PomodoroConfig = {
+    workMin: settings.pomodoroWorkMin,
+    breakMin: settings.pomodoroBreakMin,
+  }
+
+  const startBlock = useCallback(
+    (b: PlanBlock) => {
+      // 2 つ同時に走らせない。どちらの時間なのか分からなくなる
+      if (running) {
+        setAddMessage(`「${running.title}」を測っています。先に終わりにしてください`)
+        return
+      }
+      // 押した瞬間の時刻。ここから先はこの 1 点だけを見て計算する
+      upsert('running', startRun(b, Date.now(), date))
+    },
+    [running, upsert, date],
+  )
+
+  /**
+   * タイマーを止めて、記録の画面へ渡す。
+   * 予定表を作り直したあとでもコマが見つからないことがあるので、
+   * そのときは走らせているものの写しから組み立てる（測った時間を捨てないため）。
+   */
+  const stopRunning = (next: Running, minutes: number, sets: number) => {
+    remove('running', 'running')
+    const found = plan?.blocks.find((b) => b.id === next.blockId)
+    const block: PlanBlock = found ?? {
+      id: next.blockId,
+      start: fromMinutes(now),
+      end: fromMinutes(now + next.plannedMin),
+      kind: next.kind,
+      taskId: next.taskId,
+      nodeId: next.nodeId,
+      title: next.title,
+    }
+    setFinishing({ block, measuredMin: minutes, sets })
   }
 
   // 予定表の手直し。重なりと時刻の逆転は planedit 側で防いである
@@ -489,6 +545,16 @@ export default function TodayPage() {
         <strong className="grow">{formatDate(date)}</strong>
         <span className="dim">{fromMinutes(now)} 現在</span>
       </div>
+
+      {/* 測っている最中は、これがいちばん上。ほかを探して迷わせない */}
+      {running && (
+        <RunningCard
+          running={running}
+          cfg={pomoCfg}
+          onChange={(next) => upsert('running', next)}
+          onStop={stopRunning}
+        />
+      )}
 
       <RoutineCard step={routine} onAction={runRoutine} />
 
@@ -753,15 +819,22 @@ export default function TodayPage() {
                   key={b.id}
                   className={`blk k-${b.kind}${isBlockDone(b) ? ' is-done' : ''}${
                     active?.id === b.id ? ' is-now' : ''
-                  }`}
+                  }${running?.blockId === b.id ? ' is-running' : ''}`}
                 >
                   <span className="blk-time">
                     {b.start}–{b.end}
                   </span>
                   <span>
                     <span className="blk-title">
-                      {b.kind === 'study' && <span className="tag">学習</span>}
-                      {b.kind === 'workout' && <span className="tag">🏋️</span>} {b.title}
+                      {/*
+                        * 色は左の帯。**同じことを文字でも出す**ので、色が読めなくても分かる。
+                        * 題名がそのまま種類の名前のとき (「筋トレ」) は札を出さない。
+                        * 同じ言葉が 2 つ並ぶだけで、分かることが増えないため
+                        */}
+                      {b.kind !== 'break' && b.kind !== 'buffer' && b.title !== KIND_LABELS[b.kind] && (
+                        <span className={`tag k-${b.kind}`}>{KIND_LABELS[b.kind]}</span>
+                      )}{' '}
+                      {b.title}
                     </span>
                     {b.reason && <div className="reason">{b.reason}</div>}
                     {b.doneAt && b.actualMin != null && (
@@ -773,10 +846,29 @@ export default function TodayPage() {
                       </div>
                     )}
                   </span>
-                  {(b.kind === 'task' || b.kind === 'study') && !b.doneAt && (
-                    <button type="button" className="btn sm" onClick={() => setFinishing(b)}>
-                      完了
-                    </button>
+                  {canRun(b.kind) && !b.doneAt && !editingPlan && (
+                    <span className="row tight" style={{ gap: 4 }}>
+                      {/*
+                       * 「今やる」を先に置く。押せば分数は測って出るので、
+                       * 「完了」から入って実績を打ち込む道はできるだけ通らせない
+                       */}
+                      {running?.blockId !== b.id && (
+                        <button
+                          type="button"
+                          className="btn primary sm"
+                          onClick={() => startBlock(b)}
+                        >
+                          今やる
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="btn ghost sm"
+                        onClick={() => setFinishing({ block: b })}
+                      >
+                        完了
+                      </button>
+                    </span>
                   )}
                   {/* 筋トレの記録は筋トレログでつける。ここで二重に入力させない */}
                   {b.kind === 'workout' && !kintore?.doneToday && !editingPlan && (
@@ -1181,10 +1273,12 @@ export default function TodayPage() {
 
       {finishing && (
         <FinishSheet
-          block={finishing}
+          block={finishing.block}
+          measuredMin={finishing.measuredMin}
+          sets={finishing.sets}
           onClose={() => setFinishing(null)}
           onDone={(actual, finish, mastery, score) =>
-            finishBlock(finishing, actual, finish, mastery, score)
+            finishBlock(finishing.block, actual, finish, mastery, score, finishing.sets)
           }
         />
       )}
@@ -1249,10 +1343,15 @@ function BucketSection({
 
 function FinishSheet({
   block,
+  measuredMin,
+  sets,
   onClose,
   onDone,
 }: {
   block: PlanBlock
+  /** タイマーで測った分数。あるならこれを初期値にする */
+  measuredMin?: number
+  sets?: number
   onClose: () => void
   onDone: (
     actualMin: number,
@@ -1262,7 +1361,9 @@ function FinishSheet({
   ) => void
 }) {
   const planned = toMinutes(block.end) - toMinutes(block.start)
-  const [actual, setActual] = useState(planned)
+  // 測った値があればそれを出す。予定の分数を初期値にすると、
+  // 何も考えずに「そのまま記録」を押したときに嘘の実績が入る
+  const [actual, setActual] = useState(measuredMin ?? planned)
   const [mastery, setMastery] = useState<Mastery | undefined>(undefined)
   const [correct, setCorrect] = useState('')
   const [attempted, setAttempted] = useState('')
@@ -1281,10 +1382,18 @@ function FinishSheet({
           閉じる
         </button>
       </div>
-      <p className="hint">
-        予定は{formatDuration(planned)}でした。実際にかかった時間を入れると、
-        {isStudy ? '学習時間として記録されます。' : '次回の見積もりが自動で補正されます。'}
-      </p>
+      {measuredMin != null ? (
+        <Banner>
+          タイマーで <strong>{formatDuration(measuredMin)}</strong>
+          {sets ? `・${sets}セット` : ''} 測りました（予定は{formatDuration(planned)}）。
+          <div className="hint">合っていなければ下で直せます。</div>
+        </Banner>
+      ) : (
+        <p className="hint">
+          予定は{formatDuration(planned)}でした。実際にかかった時間を入れると、
+          {isStudy ? '学習時間として記録されます。' : '次回の見積もりが自動で補正されます。'}
+        </p>
+      )}
 
       <div className="row tight">
         {[15, 30, 45, 60, 90].map((m) => (
