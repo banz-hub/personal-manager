@@ -9,7 +9,6 @@ import {
 } from '../lib/reminders'
 import { loadYoteichoDay } from '../lib/bridge/yoteicho'
 import { todayKey } from '../lib/date'
-import { BACKUP_INTERVAL_DAYS } from '../lib/routine'
 import { useApp } from '../state/AppContext'
 import BackupSection from '../../../app/BackupSection'
 
@@ -55,7 +54,7 @@ export default function SettingsPage() {
       if (!alive) return
       setLink(
         d.available
-          ? `つながっています（今日の予定 ${d.items.length}件、空き時間 ${d.slots.length}コマ）`
+          ? `つながっています（今日の予定 ${d.items.length}件）`
           : (d.reason ?? '読めませんでした'),
       )
     })
@@ -70,64 +69,6 @@ export default function SettingsPage() {
       {message && <Banner>{message}</Banner>}
 
       <section className="bucket">
-        <h2 className="section">1日の使い方</h2>
-        <div className="grid2">
-          <Field label="活動を始める時刻">
-            <input
-              type="time"
-              value={s.dayStart}
-              onChange={(e) => setSettings({ dayStart: e.target.value })}
-            />
-          </Field>
-          <Field label="活動を終える時刻">
-            <input
-              type="time"
-              value={s.dayEnd}
-              onChange={(e) => setSettings({ dayEnd: e.target.value })}
-            />
-          </Field>
-        </div>
-
-        <Field label={`空き時間のうち作業に使う上限: ${Math.round(s.fillRatio * 100)}%`}>
-          <input
-            type="range"
-            min={50}
-            max={95}
-            step={5}
-            value={Math.round(s.fillRatio * 100)}
-            onChange={(e) => setSettings({ fillRatio: Number(e.target.value) / 100 })}
-          />
-        </Field>
-        <p className="hint">
-          残りはバッファとして空けます。100%にはできません。予定どおりに進まない日を吸収する余地が無いと、
-          1つ遅れただけで全部崩れるためです。
-        </p>
-
-        <div className="grid2">
-          <Field label="休憩を挟むまでの作業(分)">
-            <input
-              type="number"
-              min={20}
-              step={10}
-              value={s.workBeforeBreakMin}
-              onChange={(e) => setSettings({ workBeforeBreakMin: Number(e.target.value) })}
-            />
-          </Field>
-          <Field label="休憩の長さ(分)">
-            <input
-              type="number"
-              min={5}
-              step={5}
-              value={s.breakMin}
-              onChange={(e) => setSettings({ breakMin: Number(e.target.value) })}
-            />
-          </Field>
-        </div>
-        <p className="hint">
-          ここは<strong>予定表を組むとき</strong>の目安です（1コマをどのくらいの長さで切るか）。
-          実行中のタイマーの刻みは下で別に決めます。
-        </p>
-
         <h2 className="section">「今やる」タイマー</h2>
         <div className="grid2">
           <Field label="作業1本の長さ(分)">
@@ -157,58 +98,6 @@ export default function SettingsPage() {
           （見ていない間を作業にしないため）。
         </p>
 
-        <div className="grid2">
-          <Field label="使う空き時間の下限(分)">
-            <input
-              type="number"
-              min={5}
-              step={5}
-              value={s.minSlotMin}
-              onChange={(e) => setSettings({ minSlotMin: Number(e.target.value) })}
-            />
-          </Field>
-          <Field label="移動に見込む時間(分)">
-            <input
-              type="number"
-              min={0}
-              step={5}
-              value={s.travelAllowanceMin}
-              onChange={(e) => setSettings({ travelAllowanceMin: Number(e.target.value) })}
-            />
-          </Field>
-        </div>
-        <p className="hint">
-          移動時間は、場所が変わる予定の間から先に引きます。経路の計算はよてい帳の担当なので、
-          こちらは粗い引き当てだけです。
-        </p>
-      </section>
-
-      <section className="bucket">
-        <h2 className="section">学習</h2>
-        <div className="grid2">
-          <Field label="1回の学習の長さ(分)">
-            <input
-              type="number"
-              min={10}
-              step={5}
-              value={s.studyChunkMin}
-              onChange={(e) => setSettings({ studyChunkMin: Number(e.target.value) })}
-            />
-          </Field>
-          <Field label="1日に予定へ載せる項目数">
-            <input
-              type="number"
-              min={1}
-              max={10}
-              value={s.studyPerDayMax}
-              onChange={(e) => setSettings({ studyPerDayMax: Number(e.target.value) })}
-            />
-          </Field>
-        </div>
-        <p className="hint">
-          学習項目は数が増えるので、上位だけを今日の予定に載せます。全部載せると「今日やりたいことの合計」が
-          現実離れした数字になり、所見が意味を失うためです。理解が進んだ項目は1回の時間が自動で短くなります。
-        </p>
       </section>
 
       {/*
@@ -239,8 +128,7 @@ export default function SettingsPage() {
         </label>
         {link && <Banner alert={!link.startsWith('つながって')}>{link}</Banner>}
         <p className="hint">
-          ふだんは読み取りだけです。書き込むのは「今日の予定表」の「よてい帳へ」を押したときだけで、
-          そのときも中身を全部見せてから実行します。手で入れた予定には触れません。
+          読み取りだけです。1 ページ目の予定は、よてい帳の授業と予定をそのまま出しています。
           同じオリジン（banz-hub.github.io）で開いている必要があります。
         </p>
       </section>
@@ -257,36 +145,9 @@ export default function SettingsPage() {
           <span>筋トレログから今日のトレーニングを読む</span>
         </label>
         {kintoreLink && <Banner alert={!kintoreLink.startsWith('つながって')}>{kintoreLink}</Banner>}
-        <label className="row tight">
-          <input
-            type="checkbox"
-            style={{ width: 'auto' }}
-            checked={s.easeAfterWorkout}
-            onChange={(e) => setSettings({ easeAfterWorkout: e.target.checked })}
-          />
-          <span>前日の負荷が高い日は、詰め込みの上限を自動で下げる</span>
-        </label>
         <p className="hint">
           読み取りだけで、筋トレログのデータには一切書き込みません。
-          メニューの中身（種目・セット・重量）は筋トレログの担当なので、エージェントは時間を空けるところまでです。
           トレーニングの記録も筋トレログでつけてください。こちらで二重に入力する必要はありません。
-        </p>
-      </section>
-
-      <section className="bucket">
-        <h2 className="section">案内</h2>
-        <label className="row tight">
-          <input
-            type="checkbox"
-            style={{ width: 'auto' }}
-            checked={s.showRoutine}
-            onChange={(e) => setSettings({ showRoutine: e.target.checked })}
-          />
-          <span>朝と夜に「次にこれを押す」を出す</span>
-        </label>
-        <p className="hint">
-          時間帯に合わせて 1 つだけ出します。押すものが無いときは何も出しません。
-          データの書き出しから{BACKUP_INTERVAL_DAYS}日たつと、ここでも催促します。
         </p>
       </section>
 

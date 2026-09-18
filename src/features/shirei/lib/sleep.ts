@@ -1,11 +1,13 @@
 /**
- * 睡眠の記録と、それを今日の予定に反映するところ。
+ * 睡眠の記録と、その評価・助言。
  *
- * ボタンは 3 つだけにしてある（寝る・起きた・二度寝）。
- * 時刻を手で入れさせない。入れる手間があると続かないし、
- * 「あとでまとめて入力」は思い出しで書くので数字が当てにならない。
+ * 記録は「何時から何時まで寝た」を手で入れる (`recordSleep`)。
+ * はじめは寝る・起きたのボタンで押した時刻を残す形だったが、
+ * 押し忘れた晩が空欄になるので、あとから入れられる形に変えた。
+ * ボタンの関数 (startSleep / wakeUp / sleepAgain) は、同じ区間の形を作るので
+ * テストで記録を組み立てるのに今も使っている。
  *
- * 記録は**押した時刻をそのまま**残す。丸めたり補正したりしない。
+ * 記録は**入れた時刻をそのまま**残す。丸めたり補正したりしない。
  * ここで加工すると、あとから「本当は何時だったか」が分からなくなる。
  * 評価や助言は、残した生の記録から毎回計算し直す。
  */
@@ -17,7 +19,7 @@ import { newId } from './id'
 /** 二度寝と見なす上限 (分)。これより長く起きていたら、その晩はもう終わり */
 export const SNOOZE_GAP_MAX = 180
 
-/** 睡眠が目標よりこれ以上短い日は、詰め込みを緩める (分) */
+/** 目標よりこれ以上短い日を「足りていない」と数える (分) */
 export const SHORT_SLEEP_MIN = 60
 
 /** これより短い記録は、押し間違いとみなして残さない (分) */
@@ -103,6 +105,46 @@ export function sleepAgain(logs: SleepLog[], now: Date): SleepLog[] {
 
   const updated: SleepLog = { ...last, spans: [...last.spans, { from: now.toISOString() }] }
   return logs.map((l) => (l.id === last.id ? updated : l))
+}
+
+// ---------- 手で入れたとき ----------
+
+/** これより長い記録は入力の間違いとみなす (分)。16 時間 */
+export const MAX_RECORDED_MIN = 16 * 60
+
+/**
+ * 「何時から何時まで寝た」を 1 晩の記録にする。
+ *
+ * `date` は**起きた日。**寝た時刻が起きた時刻より遅い（同じも含む）ときは、
+ * 前の日の夜に寝たとみなす。23:30 → 7:00 は前の晩、1:00 → 8:00 と 13:00 → 14:00 は当日。
+ *
+ * 同じ日の記録は置き換える。手で入れる形では 1 日 1 件で足りるし、
+ * 直すたびに増えると、その日の代表がどれか分からなくなる。
+ *
+ * ありえない長さ（5 分未満・16 時間超）は null を返して保存させない。
+ */
+export function recordSleep(
+  logs: SleepLog[],
+  date: string,
+  bed: string,
+  wake: string,
+): SleepLog[] | null {
+  const bedMin = toMinutes(bed)
+  const wakeMin = toMinutes(wake)
+  const overnight = bedMin >= wakeMin
+  const minutes = overnight ? 24 * 60 - bedMin + wakeMin : wakeMin - bedMin
+  if (minutes < MIN_RECORDED_MIN || minutes > MAX_RECORDED_MIN) return null
+
+  const iso = (day: string, min: number) => {
+    const [y, m, d] = day.split('-').map(Number)
+    return new Date(y, m - 1, d, Math.floor(min / 60), min % 60).toISOString()
+  }
+  const log: SleepLog = {
+    id: newId('slp'),
+    date,
+    spans: [{ from: iso(overnight ? addDays(date, -1) : date, bedMin), to: iso(date, wakeMin) }],
+  }
+  return [...logs.filter((l) => l.date !== date), log]
 }
 
 // ---------- 数える ----------
@@ -301,79 +343,4 @@ export function advise(summary: SleepSummary, t: SleepTrend, settings: Settings)
     )
   }
   return out
-}
-
-// ---------- 今日の予定への反映 ----------
-
-export interface SleepAdjust {
-  settings: Settings
-  /** 変えたところの説明。変えていなければ空 */
-  notes: string[]
-}
-
-/**
- * 起きた時刻と目標の就寝時刻から、今日の使える時間を決め直す。
- *
- *  1. **起きたのが遅ければ、その時刻から始める。**
- *     8 時起きの前提で組んだ予定は、10 時に起きた日には最初から破綻している
- *  2. **目標の就寝時刻から逆算して終わりを決める。**
- *     終わりを決めないと、足りないぶんが毎晩そのまま睡眠から引かれる
- *  3. **寝不足の日は詰め込みを下げる。**筋トレのあとと同じ考え方
- *
- * 黙って変えない。変えたことと理由を必ず返す。
- */
-export function sleepAdjustedSettings(settings: Settings, summary: SleepSummary): SleepAdjust {
-  if (!settings.useSleep) return { settings, notes: [] }
-
-  const notes: string[] = []
-  let next = settings
-
-  // 1. 起きた時刻 + 支度
-  if (summary.wakeAt && !summary.ongoing) {
-    const start = toMinutes(summary.wakeAt) + settings.wakeBufferMin
-    if (start > toMinutes(settings.dayStart) && start < 24 * 60) {
-      notes.push(
-        `${summary.wakeAt}に起きたので、今日の始まりを${settings.dayStart}から${fromMinutes(start)}にしました。`,
-      )
-      next = { ...next, dayStart: fromMinutes(start) }
-    }
-  }
-
-  // 2. 目標の就寝時刻 - 支度
-  const bed = toMinutes(settings.targetBedtime)
-  // 0〜4 時に寝る設定なら日をまたぐので、その日の終わりまでは削らない
-  if (bed >= 4 * 60) {
-    const end = bed - settings.bedtimeBufferMin
-    if (end < toMinutes(next.dayEnd) && end > toMinutes(next.dayStart)) {
-      notes.push(
-        `${settings.targetBedtime}に寝るために、今日の終わりを${settings.dayEnd}から${fromMinutes(end)}にしました。`,
-      )
-      next = { ...next, dayEnd: fromMinutes(end) }
-    }
-  }
-
-  // 3. 寝不足なら詰め込みを下げる
-  if (summary.minutes > 0 && summary.diffMin < -SHORT_SLEEP_MIN) {
-    const fillRatio = Math.max(0.5, next.fillRatio - 0.1)
-    if (fillRatio !== next.fillRatio) {
-      notes.push(
-        `睡眠が${formatDuration(-summary.diffMin)}足りないので、詰め込みの上限を` +
-          `${Math.round(next.fillRatio * 100)}%から${Math.round(fillRatio * 100)}%に下げました。`,
-      )
-      next = { ...next, fillRatio }
-    }
-  }
-
-  return { settings: next, notes }
-}
-
-/**
- * 目標どおり寝るには、あとどれくらいか。
- * `nowMin` は 0 時からの分。画面がすでにその形で時刻を持っているのに合わせる。
- */
-export function bedtimeGuide(settings: Settings, nowMin: number): string {
-  const target = toMinutes(settings.targetBedtime)
-  const left = target - nowMin
-  if (left > 0) return `${settings.targetBedtime}までにあと${formatDuration(left)}`
-  return `${settings.targetBedtime}を過ぎています`
 }

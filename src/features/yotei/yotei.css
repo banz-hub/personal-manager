@@ -609,10 +609,161 @@
 .ft-yotei .cal-day {
   font-size: 0.85rem;
 }
-.ft-yotei .cal-dot {
+/* 月の表示の点。種類の色 (--tone は index.css の .t-*) で塗る */
+.ft-yotei .cal-pips {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+}
+.ft-yotei .cal-pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tone);
+}
+
+/* ---------- 週のカレンダー ---------- */
+/*
+ * 縦が時刻、横が月〜日。左の 26px が時刻の目盛り。
+ * 1 時間ごとの横線は背景の繰り返しで引く（背景の高さは画面側で 1 時間ぶんに合わせる）。
+ */
+.ft-yotei .wk {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+  margin: 0 0 8px;
+}
+.ft-yotei .wk-head,
+.ft-yotei .wk-body {
+  display: grid;
+  grid-template-columns: 26px repeat(7, minmax(0, 1fr));
+}
+.ft-yotei .wk-head {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.ft-yotei .wk-dh {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+}
+.ft-yotei .wk-dh span {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+.ft-yotei .wk-dh strong {
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  width: 26px;
+  height: 26px;
+  line-height: 26px;
+  text-align: center;
+  border-radius: 50%;
+}
+.ft-yotei .wk-dh.is-sun span {
+  color: var(--c-exam);
+}
+.ft-yotei .wk-dh.is-sat span {
+  color: var(--c-baito);
+}
+.ft-yotei .wk-dh.is-today strong {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.ft-yotei .wk-dh.is-selected:not(.is-today) strong {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.ft-yotei .wk-body {
+  position: relative;
+  background-image: linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+}
+.ft-yotei .wk-hours {
+  position: relative;
+}
+.ft-yotei .wk-hours span {
+  position: absolute;
+  right: 3px;
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  transform: translateY(1px);
+}
+.ft-yotei .wk-col {
+  position: relative;
+  border-left: 1px solid var(--border);
+  cursor: pointer;
+}
+.ft-yotei .wk-col.is-today {
+  background: var(--accent-soft);
+}
+.ft-yotei .wk-col.is-selected:not(.is-today) {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.ft-yotei .wk-ev {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 3px;
+  border: 0;
+  border-left: 3px solid var(--tone);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--tone) 30%, var(--surface));
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+  /* 隣り合う予定がくっついて 1 つに見えないよう、内側に 1px 空ける */
+  box-shadow: inset 0 0 0 1px var(--surface);
+}
+.ft-yotei .wk-ev-title {
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.ft-yotei .wk-ev-time {
   font-size: 0.6rem;
-  line-height: 1;
-  color: var(--accent);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.ft-yotei .wk-now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--c-exam);
+  pointer-events: none;
+}
+.ft-yotei .wk-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 14px;
+}
+.ft-yotei .wk-back {
+  display: block;
+  margin: -4px auto 10px;
+}
+.ft-yotei .day-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+/* 下の一覧も、左の帯で種類が分かるようにする */
+.ft-yotei .list-item.ev-li {
+  border-left: 4px solid var(--tone);
+  padding-left: 10px;
 }
 /* ---------- 時間割 ---------- */
 .ft-yotei .timetable-scroll {

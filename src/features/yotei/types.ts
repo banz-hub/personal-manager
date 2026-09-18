@@ -164,13 +164,15 @@ export interface Course {
   color?: string
 }
 
-export type EventCategory = 'baito' | 'trip' | 'jobhunt' | 'private' | 'other'
+export type EventCategory = 'baito' | 'trip' | 'jobhunt' | 'exam' | 'private' | 'other'
 
+/** 並べた順が、予定の入力で選ぶときの順になる */
 export const CATEGORY_LABELS: Record<EventCategory, string> = {
   baito: 'バイト',
-  trip: '旅行',
   jobhunt: '就活',
-  private: '大事な予定',
+  exam: '試験',
+  private: '私用',
+  trip: '旅行',
   other: 'その他',
 }
 

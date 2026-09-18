@@ -68,8 +68,13 @@ export function buildWeekly(input: WeeklyInput): WeeklySummary {
   const reviews = input.reviews.filter((r) => inWeek(r.date))
 
   const plannedBlocks = plans.flatMap((p) => workBlocks(p))
-  const planned = plannedBlocks.length
-  const doneBlocks = plannedBlocks.filter((b) => b.doneAt).length
+  // いまは「やること」のリストが本線。前の版の予定表が残っている週は、その分も足す
+  const listed = input.tasks.filter(
+    (t) => t.pinnedDate != null && inWeek(t.pinnedDate) && t.status !== 'dropped',
+  )
+  const planned = plannedBlocks.length + listed.length
+  const doneBlocks =
+    plannedBlocks.filter((b) => b.doneAt).length + listed.filter((t) => t.status === 'done').length
   const deferred = reviews.reduce((sum, r) => sum + r.deferredTaskIds.length, 0)
 
   const plannedMin = plannedBlocks.reduce(
@@ -159,14 +164,14 @@ function improvementsFor(s: WeeklySummary, input: WeeklyInput): string[] {
   const out: Candidate[] = []
 
   if (s.tasks.planned === 0) {
-    return ['この週は予定を作っていません。まず朝に「今日の予定を作る」を押すところから始めてください。']
+    return ['この週は「やること」に何も入れていません。1 ページ目で、その日にやるものを選ぶところから始めてください。']
   }
 
   // 完了率。低いほど困っている
   if (s.tasks.completionRate < 0.6) {
     out.push({
       severity: 100 * (0.6 - s.tasks.completionRate),
-      text: `予定${s.tasks.planned}件のうち完了は${s.tasks.done}件（${Math.round(s.tasks.completionRate * 100)}%）でした。1日に入れる量を減らすか、設定の「詰め込みの上限」を下げてください。`,
+      text: `予定${s.tasks.planned}件のうち完了は${s.tasks.done}件（${Math.round(s.tasks.completionRate * 100)}%）でした。1日にリストへ入れる数を減らすことを勧めます。`,
     })
   }
 
@@ -174,7 +179,7 @@ function improvementsFor(s: WeeklySummary, input: WeeklyInput): string[] {
   if (s.tasks.estimateRatio != null && s.tasks.estimateRatio >= 1.3) {
     out.push({
       severity: 40 * s.tasks.estimateRatio,
-      text: `実績が見積もりの${s.tasks.estimateRatio.toFixed(1)}倍かかっています。見積もりは自動で補正されますが、そもそも1回の作業を短く切ったほうが崩れにくくなります。`,
+      text: `実績が見積もりの${s.tasks.estimateRatio.toFixed(1)}倍かかっています。1回の作業を短く切ったほうが崩れにくくなります。`,
     })
   } else if (s.tasks.estimateRatio != null && s.tasks.estimateRatio <= 0.7) {
     out.push({
@@ -219,7 +224,7 @@ function improvementsFor(s: WeeklySummary, input: WeeklyInput): string[] {
   if (s.study.sessions === 0 && input.nodes.length > 0) {
     out.push({
       severity: 55,
-      text: 'この週は学習の記録がありません。1回20〜30分でも記録を残すと、次の復習日と優先順位が動き始めます。',
+      text: 'この週は学習の記録がありません。1回20〜30分でも記録を残すと、次の復習日が決まります。',
     })
   }
 

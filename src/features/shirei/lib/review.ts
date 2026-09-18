@@ -98,44 +98,14 @@ export function completeStudy(
   }
 }
 
-// ---------- 繰越 ----------
-
-export interface CarryOverResult {
-  tasks: Task[]
-  /** 繰り越したタスクの id */
-  carried: string[]
-}
-
-/**
- * その日の予定に入っていたのに終わらなかったタスクを翌日へ送る。
- * 締切を勝手に動かすことはしない。先送り回数だけ増やして、
- * 次の日の優先順位が自然に上がるようにする。
- *
- * 学習項目は繰り越しの対象にしない。やらなかった日数そのものが
- * 「◯日やっていない」として優先順位に効くので、二重に数えないため。
- */
-export function carryOver(tasks: Task[], plan: DayPlan | undefined, date: string): CarryOverResult {
-  if (!plan) return { tasks, carried: [] }
-  const planned = new Set(plannedTaskIds(plan))
-  const carried: string[] = []
-
-  const next = tasks.map((t) => {
-    if (!planned.has(t.id)) return t
-    if (t.status === 'done' || t.status === 'dropped') return t
-    // 同じ日に二重に数えない
-    if (t.deferredOn === date) return t
-    carried.push(t.id)
-    return { ...t, deferCount: (t.deferCount ?? 0) + 1, deferredOn: date }
-  })
-
-  return { tasks: next, carried }
-}
-
 // ---------- 日次レビュー ----------
 
 export interface ReviewInput {
   date: string
+  /** 前の版で自動で組んでいた予定表。残っている日だけ */
   plan?: DayPlan
+  /** その日の「やること」に入れたタスクの id。いまはこちらが本線 */
+  listed?: string[]
   tasks: Task[]
   /** その日のログ */
   logs: TaskLog[]
@@ -154,10 +124,10 @@ const OVERRUN = 1.2
 const UNDERRUN = 0.6
 
 export function buildReview(input: ReviewInput): DailyReview {
-  const { date, plan, tasks, logs, nodes, sessions, workout } = input
+  const { date, plan, listed, tasks, logs, nodes, sessions, workout } = input
   const byId = new Map(tasks.map((t) => [t.id, t]))
   const nodeById = new Map(nodes.map((n) => [n.id, n]))
-  const plannedIds = plan ? plannedTaskIds(plan) : []
+  const plannedIds = [...new Set([...(listed ?? []), ...(plan ? plannedTaskIds(plan) : [])])]
   const plannedNodes = plan ? plannedNodeIds(plan) : []
 
   const doneTaskIds = plannedIds.filter((id) => byId.get(id)?.status === 'done')
@@ -244,12 +214,12 @@ function analyze(a: AnalyzeInput): string[] {
   const totalDone = a.doneTaskIds.length + a.doneNodeIds.length
 
   if (totalPlanned === 0) {
-    out.push('今日は予定を作っていません。朝に「今日の予定を作る」を押すと、空き時間から組み立てます。')
+    out.push('この日の「やること」は空でした。1 ページ目でリストに入れると、ここで振り返れます。')
     return out
   }
 
   if (totalDone === totalPlanned) {
-    out.push(`予定した${totalPlanned}件をすべて終えました。明日も同じ配分で組めます。`)
+    out.push(`入れた${totalPlanned}件をすべて終えました。`)
   } else {
     out.push(
       `予定${totalPlanned}件のうち${totalDone}件が完了、${totalPlanned - totalDone}件が未完了です。`,
@@ -263,7 +233,7 @@ function analyze(a: AnalyzeInput): string[] {
     const t = a.byId.get(worst.taskId)
     out.push(
       `「${t?.title ?? '不明なタスク'}」は${formatDuration(worst.plannedMin)}の予定に対して${formatDuration(worst.actualMin)}かかりました。` +
-        'この記録は次回の見積もりに自動で反映されます。',
+        '次に同じようなものを入れるときの目安にしてください。',
     )
   }
 
@@ -278,7 +248,7 @@ function analyze(a: AnalyzeInput): string[] {
       .filter(Boolean)
       .slice(0, 3)
       .join('、')
-    out.push(`手をつけられなかったのは${titles}です。明日の優先順位を上げて先に置きます。`)
+    out.push(`手をつけられなかったのは${titles}です。「未完了を翌日へ送る」で次の日のリストに移せます。`)
   }
 
   if (a.undoneNodeIds.length > 0) {
@@ -287,7 +257,7 @@ function analyze(a: AnalyzeInput): string[] {
       .filter(Boolean)
       .slice(0, 3)
       .join('、')
-    out.push(`学習で手をつけられなかったのは${titles}です。やらなかった日数ぶん、優先順位が上がります。`)
+    out.push(`学習で手をつけられなかったのは${titles}です。`)
   }
 
   // 実績が予定の半分以下 = 時間そのものが取れていない。詰め込みが原因のことが多い

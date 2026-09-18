@@ -1,13 +1,14 @@
 /**
  * 睡眠の記録と傾向。
  *
- * 今日の分は「今日」の画面で押す。ここは振り返りと、目標の調整だけ。
+ * 記録は「何時から何時まで寝たか」を入れる。今日のぶんは 1 ページ目でも入れられる。
+ * 前の日のぶんを入れ忘れたときは、ここで日付を選んで入れる。
  */
 
 import { useMemo, useState } from 'react'
 import { Banner, Empty, Field } from '../components/ui'
 import { addDays, formatDate, formatDuration, todayKey } from '../lib/date'
-import { advise, summarize, trend, type SleepSummary } from '../lib/sleep'
+import { advise, recordSleep, summarize, trend, type SleepSummary } from '../lib/sleep'
 import { useApp } from '../state/AppContext'
 
 const RATING_CLASS = {
@@ -25,6 +26,19 @@ export default function SleepPage() {
   const s = data.settings
   const today = todayKey()
   const [message, setMessage] = useState('')
+  const [wakeDay, setWakeDay] = useState(today)
+  const [bed, setBed] = useState(s.targetBedtime)
+  const [wake, setWake] = useState('07:00')
+
+  const save = () => {
+    const next = recordSleep(data.sleepLogs, wakeDay, bed, wake)
+    if (!next) {
+      setMessage('5分未満か16時間を超えています。時刻を確かめてください')
+      return
+    }
+    replaceList('sleepLogs', next)
+    setMessage(`${formatDate(wakeDay)}の睡眠を記録しました（${bed}〜${wake}）`)
+  }
 
   const days = useMemo(() => {
     const out: Array<{ date: string; summary: SleepSummary }> = []
@@ -49,9 +63,30 @@ export default function SleepPage() {
       {message && <Banner>{message}</Banner>}
 
       <section className="bucket">
+        <h2 className="section">記録する</h2>
+        <Field label="起きた日">
+          <input type="date" value={wakeDay} max={today} onChange={(e) => e.target.value && setWakeDay(e.target.value)} />
+        </Field>
+        <div className="grid2">
+          <Field label="寝た時刻">
+            <input type="time" value={bed} onChange={(e) => setBed(e.target.value)} />
+          </Field>
+          <Field label="起きた時刻">
+            <input type="time" value={wake} onChange={(e) => setWake(e.target.value)} />
+          </Field>
+        </div>
+        <button type="button" className="btn primary" onClick={save}>
+          記録する
+        </button>
+        <p className="hint">
+          寝た時刻が起きた時刻より遅ければ、前の日の夜に寝たものとして数えます。同じ日にもう一度入れると置き換わります。
+        </p>
+      </section>
+
+      <section className="bucket">
         <h2 className="section">直近{t.days > 0 ? `${t.days}日` : ''}の傾向</h2>
         {t.days === 0 ? (
-          <Empty>まだ記録がありません。「今日」の画面のボタンで記録します。</Empty>
+          <Empty>まだ記録がありません。上の欄か、1 ページ目で入れてください。</Empty>
         ) : (
           <>
             <div className="grid2">
@@ -130,8 +165,7 @@ export default function SleepPage() {
           </div>
         )}
         <p className="hint">
-          押した時刻をそのまま残しています。丸めていないので、押し忘れた日は空欄のままです。
-          間違って押した日は消して、次の日から取り直してください。
+          入れた時刻をそのまま残しています。直したい日は、上の欄で同じ日を入れ直してください。
         </p>
       </section>
 
@@ -156,41 +190,6 @@ export default function SleepPage() {
             />
           </Field>
         </div>
-        <div className="grid2">
-          <Field label="起きてから始めるまで(分)">
-            <input
-              type="number"
-              min={0}
-              step={5}
-              value={s.wakeBufferMin}
-              onChange={(e) => setSettings({ wakeBufferMin: Number(e.target.value) })}
-            />
-          </Field>
-          <Field label="寝る前の支度(分)">
-            <input
-              type="number"
-              min={0}
-              step={5}
-              value={s.bedtimeBufferMin}
-              onChange={(e) => setSettings({ bedtimeBufferMin: Number(e.target.value) })}
-            />
-          </Field>
-        </div>
-
-        <label className="row tight">
-          <input
-            type="checkbox"
-            style={{ width: 'auto' }}
-            checked={s.useSleep}
-            onChange={(e) => setSettings({ useSleep: e.target.checked })}
-          />
-          <span>睡眠に合わせて今日の予定を組み直す</span>
-        </label>
-        <p className="hint">
-          入れておくと、<strong>起きた時刻から今日を始め</strong>、
-          <strong>目標の就寝時刻から逆算して夜の終わりを決め</strong>、
-          寝不足の日は詰め込みの上限を下げます。変えたときは「今日」の画面に理由が出ます。
-        </p>
       </section>
     </div>
   )

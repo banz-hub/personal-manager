@@ -62,7 +62,14 @@ export default function TasksPage() {
       return
     }
     const dueDate = action === 'today' ? today : addDays(today, 7)
-    upsert('tasks', { ...task, dueDate, deferCount: undefined, deferredOn: undefined })
+    upsert('tasks', {
+      ...task,
+      dueDate,
+      deferCount: undefined,
+      deferredOn: undefined,
+      // 「今日にする」は今日のリストにも入れる。締切だけ直しても 1 ページ目に出ないため
+      ...(action === 'today' ? { pinnedDate: today } : {}),
+    })
     setMessage(`「${task.title}」の締切を ${dueDate} に直しました。`)
   }
 
@@ -85,7 +92,7 @@ export default function TasksPage() {
 
       {overdueCount > 0 && filter !== 'overdue' && (
         <Banner alert>
-          期限切れが{overdueCount}件あります。放っておくと優先順位が歪んだままになります。
+          期限切れが{overdueCount}件あります。今日やるか、締切を直すか、やめるかを決めてください。
           <div className="row tight" style={{ marginTop: 8 }}>
             <button type="button" className="btn sm" onClick={() => setFilter('overdue')}>
               片づける
@@ -171,6 +178,32 @@ export default function TasksPage() {
                   {(t.deferCount ?? 0) > 0 && <span>先送り {t.deferCount}回</span>}
                 </span>
                 {t.note && <span className="dim">{t.note}</span>}
+
+                {/* 1 ページ目の「今日やること」に入れる・外す */}
+                {!done && !overdue && (
+                  <div className="row tight">
+                    {t.pinnedDate === today ? (
+                      <>
+                        <span className="tag today-in">今日やる</span>
+                        <button
+                          type="button"
+                          className="btn ghost sm"
+                          onClick={() => upsert('tasks', { ...t, pinnedDate: undefined })}
+                        >
+                          今日のリストから外す
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn sm"
+                        onClick={() => upsert('tasks', { ...t, pinnedDate: today })}
+                      >
+                        今日のリストに入れる
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {overdue && (
                   <div className="row tight">

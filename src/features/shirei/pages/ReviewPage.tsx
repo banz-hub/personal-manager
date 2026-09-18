@@ -8,7 +8,8 @@ import {
   type WorkoutDay,
 } from '../lib/bridge/kintore'
 import { addDays, formatDate, formatDuration, todayKey } from '../lib/date'
-import { buildReview, carryOver } from '../lib/review'
+import { carryToNextDay, listOn } from '../lib/daylist'
+import { buildReview } from '../lib/review'
 import { areaOf } from '../lib/study'
 import {
   buildStats,
@@ -77,6 +78,8 @@ function Daily() {
   const plan = data.plans.find((p) => p.date === date)
   const logs = useMemo(() => data.logs.filter((l) => l.date === date), [data.logs, date])
   const sessions = useMemo(() => data.sessions.filter((s) => s.date === date), [data.sessions, date])
+  // その日の「やること」に入れたもの。完了・未完了はここで数える
+  const listed = useMemo(() => listOn(data.tasks, date).map((t) => t.id), [data.tasks, date])
 
   // 筋トレの実績は筋トレログが正本。今日ぶんだけ読んで写す
   useEffect(() => {
@@ -106,8 +109,8 @@ function Daily() {
   const review = useMemo(
     () =>
       saved ??
-      buildReview({ date, plan, tasks: data.tasks, logs, nodes: data.nodes, sessions, workout }),
-    [saved, date, plan, data.tasks, logs, data.nodes, sessions, workout],
+      buildReview({ date, plan, listed, tasks: data.tasks, logs, nodes: data.nodes, sessions, workout }),
+    [saved, date, plan, listed, data.tasks, logs, data.nodes, sessions, workout],
   )
 
   const titleOf = (id: string) => data.tasks.find((t) => t.id === id)?.title ?? '（削除済み）'
@@ -127,17 +130,17 @@ function Daily() {
   const save = () => {
     upsert(
       'reviews',
-      buildReview({ date, plan, tasks: data.tasks, logs, nodes: data.nodes, sessions, workout }),
+      buildReview({ date, plan, listed, tasks: data.tasks, logs, nodes: data.nodes, sessions, workout }),
     )
     setMessage('レビューを保存しました')
   }
 
   const doCarryOver = () => {
-    const { tasks, carried } = carryOver(data.tasks, plan, date)
+    const { tasks, carried } = carryToNextDay(data.tasks, date)
     replaceList('tasks', tasks)
     setMessage(
       carried.length > 0
-        ? `${carried.length}件を明日に繰り越しました。優先順位が上がります。`
+        ? `${carried.length}件を次の日のリストへ送りました`
         : '繰り越すタスクはありませんでした',
     )
   }
@@ -257,11 +260,11 @@ function Daily() {
           disabled={review.undoneTaskIds.length === 0}
           onClick={doCarryOver}
         >
-          未完了を明日へ繰り越す
+          未完了を翌日へ送る
         </button>
       </div>
       <p className="hint">
-        繰り越しても締切は動きません。先送りした回数だけを数えて、次の日の優先順位を上げます。
+        次の日の「やること」へ移します。締切は動きません。
       </p>
     </>
   )

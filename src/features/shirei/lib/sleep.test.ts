@@ -9,10 +9,9 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_SETTINGS, type Settings, type SleepLog } from '../types'
 import {
   advise,
-  bedtimeGuide,
   isAsleep,
   rate,
-  sleepAdjustedSettings,
+  recordSleep,
   sleepAgain,
   startSleep,
   summarize,
@@ -140,62 +139,6 @@ describe('直近の傾向', () => {
   })
 })
 
-describe('今日の予定への反映', () => {
-  const base: Settings = { ...S, dayStart: '08:00', dayEnd: '23:00', fillRatio: 0.8, wakeBufferMin: 30 }
-
-  it('遅く起きた日は、その時刻から始める', () => {
-    let logs = startSleep([], at('2026-09-08T02:00:00'))
-    logs = wakeUp(logs, at('2026-09-08T10:00:00'))
-    const s = summarize(logs, '2026-09-08', base)
-
-    const r = sleepAdjustedSettings(base, s)
-    expect(r.settings.dayStart).toBe('10:30')
-    expect(r.notes.join()).toContain('10:00に起きたので')
-  })
-
-  it('早く起きた日は、いつもの開始時刻のまま', () => {
-    let logs = startSleep([], at('2026-09-07T23:00:00'))
-    logs = wakeUp(logs, at('2026-09-08T06:00:00'))
-    const s = summarize(logs, '2026-09-08', base)
-
-    const r = sleepAdjustedSettings(base, s)
-    expect(r.settings.dayStart).toBe('08:00')
-  })
-
-  it('目標の就寝時刻から逆算して、夜の終わりを決める', () => {
-    const r = sleepAdjustedSettings(base, summarize([], '2026-09-08', base))
-    // 23:30 に寝るので 30 分前まで
-    expect(r.settings.dayEnd).toBe('23:00')
-  })
-
-  it('寝不足の日は詰め込みを下げる', () => {
-    let logs = startSleep([], at('2026-09-08T02:00:00'))
-    logs = wakeUp(logs, at('2026-09-08T07:00:00'))
-    const s = summarize(logs, '2026-09-08', base)
-
-    const r = sleepAdjustedSettings(base, s)
-    expect(r.settings.fillRatio).toBeCloseTo(0.7)
-    expect(r.notes.join()).toContain('詰め込みの上限')
-  })
-
-  it('切っていれば何もしない', () => {
-    const off = { ...base, useSleep: false }
-    let logs = startSleep([], at('2026-09-08T02:00:00'))
-    logs = wakeUp(logs, at('2026-09-08T10:00:00'))
-    const r = sleepAdjustedSettings(off, summarize(logs, '2026-09-08', off))
-    expect(r.settings).toEqual(off)
-    expect(r.notes).toEqual([])
-  })
-
-  it('まだ寝ている最中は、開始時刻を動かさない', () => {
-    const logs = startSleep([], at('2026-09-08T02:00:00'))
-    const s = summarize(logs, '2026-09-08', base)
-    expect(s.ongoing).toBe(true)
-    const r = sleepAdjustedSettings(base, s)
-    expect(r.settings.dayStart).toBe('08:00')
-  })
-})
-
 describe('助言', () => {
   it('記録から言えることだけを返す', () => {
     let logs = startSleep([], at('2026-09-08T02:00:00'))
@@ -216,16 +159,6 @@ describe('助言', () => {
   it('記録が無ければ何も言わない', () => {
     const s = summarize([], '2026-09-08', S)
     expect(advise(s, trend([], '2026-09-08', S), S)).toEqual([])
-  })
-})
-
-describe('寝るまでの案内', () => {
-  it('目標までの残りを出す', () => {
-    expect(bedtimeGuide(S, 22 * 60)).toContain('あと')
-  })
-
-  it('過ぎていればそう言う', () => {
-    expect(bedtimeGuide(S, 23 * 60 + 50)).toContain('過ぎています')
   })
 })
 
@@ -295,5 +228,42 @@ describe('助言と評価が食い違わない', () => {
     // 「まずまず」なのに「目標どおり」とは言わない
     expect(out.join()).not.toContain('目標どおり')
     expect(out.join()).toContain('途中で1回起きています')
+  })
+})
+
+describe('手で入れる', () => {
+  it('寝た時刻が起きた時刻より遅ければ、前の晩に寝たことになる', () => {
+    const logs = recordSleep([], '2026-09-08', '23:30', '07:00')!
+    const s = summarize(logs, '2026-09-08', S)
+    expect(s.minutes).toBe(450)
+    expect(s.bedAt).toBe('23:30')
+    expect(s.wakeAt).toBe('07:00')
+    expect(new Date(logs[0].spans[0].from).getDate()).toBe(7)
+  })
+
+  it('日付が変わってから寝たときは当日のまま', () => {
+    const logs = recordSleep([], '2026-09-08', '01:00', '08:00')!
+    expect(summarize(logs, '2026-09-08', S).minutes).toBe(420)
+    expect(new Date(logs[0].spans[0].from).getDate()).toBe(8)
+  })
+
+  it('同じ日に入れ直すと置き換わる。増えない', () => {
+    let logs = recordSleep([], '2026-09-08', '23:00', '06:00')!
+    logs = recordSleep(logs, '2026-09-08', '00:00', '07:00')!
+    expect(logs).toHaveLength(1)
+    expect(summarize(logs, '2026-09-08', S).bedAt).toBe('00:00')
+  })
+
+  it('別の日の記録には触らない', () => {
+    let logs = recordSleep([], '2026-09-07', '23:00', '06:00')!
+    logs = recordSleep(logs, '2026-09-08', '23:00', '06:00')!
+    expect(logs.map((l) => l.date).sort()).toEqual(['2026-09-07', '2026-09-08'])
+  })
+
+  it('ありえない長さは保存しない', () => {
+    // 同じ時刻は「24 時間寝た」になるので長すぎとして弾く
+    expect(recordSleep([], '2026-09-08', '07:00', '07:00')).toBeNull()
+    expect(recordSleep([], '2026-09-08', '07:00', '07:03')).toBeNull()
+    expect(recordSleep([], '2026-09-08', '18:00', '12:00')).toBeNull()
   })
 })

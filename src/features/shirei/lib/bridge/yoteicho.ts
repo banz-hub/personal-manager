@@ -16,6 +16,7 @@
 import { get } from 'idb-keyval'
 import { yoteiStore as store } from '../../../yotei/bridge'
 import { placeLabelBetween, spotBetween } from '../../../yotei/lib/schedule'
+import { labelOf } from '../../../yotei/lib/tone'
 import type { Interest as YTodoInterest, SpotKind, Todo as YTodo } from '../../../yotei/types'
 import { fromMinutes, parseDate, toMinutes } from '../date'
 import type { FreeSlot } from '../scheduler'
@@ -60,14 +61,6 @@ interface YEvent {
   placeId?: string
   station?: string
   needsTravel: boolean
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
-  baito: 'バイト',
-  trip: '旅行',
-  jobhunt: '就活',
-  private: '大事な予定',
-  other: 'その他',
 }
 
 /** その日に入っている動かせない予定 */
@@ -152,7 +145,7 @@ export function eventsOn(dateKey: string, events: YEvent[], places: YPlace[]): F
       const place = places.find((p) => p.id === e.placeId)
       return {
         id: e.id,
-        title: e.title || CATEGORY_LABELS[e.category] || '予定',
+        title: e.title || labelOf('event', e.category),
         start: e.start,
         end: e.end,
         startMin: toMinutes(e.start),

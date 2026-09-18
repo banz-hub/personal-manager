@@ -1314,42 +1314,296 @@ table.compare td:first-child {
   }
 }
 
-/* ---------- いちばん重要な節 ---------- */
+/* ---------- 予定の色 ---------- */
 
 /*
- * 今日の予定表だけ、枠と見出しの色を強くする。
+ * 予定の種類ごとの色。決めるのは src/features/yotei/lib/tone.ts、色の値はここ。
+ *   授業 … 緑 / 私用・旅行 … ピンク / バイト … 水色 / 就活 … オレンジ / 試験 … 赤
  *
- * ほかの節と同じ見た目だと、7 つ並んだうちの 1 つに見える。
- * この画面は「今日なにをするか」を出すためのものなので、
- * そこがいちばん先に目に入るようにする。
- *
- * **強くするのはここだけ。**2 つ以上を強くすると、
- * どれを先に見ればいいのか分からなくなって、結局どれも目立たなくなる。
+ * `.t-<種類>` は `--tone` を 1 つ決めるだけ。帯・地・ラベルはそれを使い回す。
+ * 色だけに頼らないよう、画面では必ず「授業」「バイト」の文字と一緒に出す。
  */
-.bucket.lead {
-  background: var(--surface-2);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  padding: 14px;
-  /* 枠の外にうっすら明かりを置いて、枠線 1 本より前に出て見えるようにする */
-  box-shadow: 0 0 0 3px var(--accent-soft);
+:root {
+  --c-class: #5fcf7a;
+  --c-private: #f07bb3;
+  --c-baito: #58c4ee;
+  --c-job: #f59a3e;
+  --c-exam: #f2685c;
+  --c-other: #7d8b84;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --c-class: #23884a;
+    --c-private: #c23c7e;
+    --c-baito: #0a7fb0;
+    --c-job: #b35a06;
+    --c-exam: #cc3328;
+    --c-other: #6d7a73;
+  }
 }
 
-.bucket.lead h2.section {
+.t-class {
+  --tone: var(--c-class);
+}
+.t-private {
+  --tone: var(--c-private);
+}
+.t-baito {
+  --tone: var(--c-baito);
+}
+.t-job {
+  --tone: var(--c-job);
+}
+.t-exam {
+  --tone: var(--c-exam);
+}
+.t-other {
+  --tone: var(--c-other);
+}
+
+.tag.t-class,
+.tag.t-private,
+.tag.t-baito,
+.tag.t-job,
+.tag.t-exam,
+.tag.t-other {
+  color: var(--tone);
+  border-color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
+  font-weight: 600;
+}
+
+/* ---------- 1 ページ目 ---------- */
+
+.home {
+  gap: 14px;
+}
+.home .small {
+  font-size: 12px;
+}
+
+.day-head {
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  align-items: center;
+}
+.day-step {
+  font-size: 26px;
+  line-height: 1;
+  padding: 6px 0;
+  min-height: 44px;
+}
+.day-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.day-title strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.day-rel {
+  font-size: 12px;
+  color: var(--muted);
+  min-height: 1em;
+}
+.day-rel.is-today {
   color: var(--accent);
-  font-size: 15px;
-  letter-spacing: 0.04em;
-  margin: 0;
-  /*
-   * 見出しは縮めない。横にボタンが 4 つ並ぶので、縮む設定のままだと
-   * iPhone の幅で「今日 / の予 / 定表」と 3 行に割れる。
-   * 入らないぶんはボタンのほうを次の行に送る (.row は折り返す)。
-   */
-  flex: 1 0 auto;
-  white-space: nowrap;
+  font-weight: 700;
+}
+.back-today {
+  align-self: center;
+  margin-top: -8px;
 }
 
-/* 中のコマは、節の地より一段暗く（明るい配色では白く）して浮かせる */
-.bucket.lead .blk {
+.home-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.home-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.home-sec-head h2.section {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+}
+.home-sec-head .count {
+  color: var(--muted);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 予定 1 件。左の帯と、うっすら色を混ぜた地で種類が分かる */
+.ev {
+  display: grid;
+  grid-template-columns: 62px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  /* 種類の分からない予定は灰色。.t-* より後ろに書くので、ここで --tone を決めてはいけない */
+  border-left: 5px solid var(--tone, var(--c-other));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--tone, var(--c-other)) 12%, var(--surface));
+}
+.ev-time {
+  display: flex;
+  flex-direction: column;
+  font-weight: 700;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.ev-end {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--muted);
+}
+.ev-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ev-place {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--muted);
+}
+.ev.is-past {
+  opacity: 0.45;
+}
+/* いま入っている予定。枠も同じ色にして、並びの中で浮かせる */
+.ev.is-now {
+  border-color: var(--tone, var(--c-other));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--tone) 30%, transparent);
+}
+
+/* やること */
+.todo {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.todo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
   background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.todo-row.is-running {
+  border-color: var(--timer);
+}
+.todo-check {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 2px solid var(--muted);
+  background: transparent;
+  color: var(--on-accent);
+  font-weight: 800;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.todo-row.is-done .todo-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.todo-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 32px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.todo-row.is-done .todo-title {
+  color: var(--muted);
+  text-decoration: line-through;
+  font-weight: 400;
+}
+.todo-due {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.todo-due.is-near {
+  color: var(--important);
+}
+.todo-add {
+  display: flex;
+  gap: 8px;
+}
+.todo-add input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.todo-add .btn,
+.home-sec-head .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.leftover {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px dashed var(--important);
+  border-radius: 8px;
+  color: var(--text);
+}
+
+/* 睡眠 */
+.sleep-line {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.sleep-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.sleep-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* タスク一覧で「今日のリストに入っている」印 */
+.tag.today-in {
+  color: var(--accent);
+  border-color: var(--accent);
 }

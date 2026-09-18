@@ -354,9 +354,23 @@ describe('来週改善すべきこと', () => {
     expect(s.improvements[0]).toContain('大きな崩れはありません')
   })
 
-  it('予定を作っていない週は、そこから案内する', () => {
+  it('やることを入れていない週は、そこから案内する', () => {
     const s = buildWeekly(input())
-    expect(s.improvements[0]).toContain('予定を作っていません')
+    expect(s.improvements[0]).toContain('何も入れていません')
+  })
+
+  it('その週のリストに入れたタスクを、予定と完了に数える', () => {
+    const s = buildWeekly(
+      input({
+        tasks: [
+          { id: 'a', title: 'a', area: 'other', status: 'done', estimateMin: 30, importance: 2, createdAt: '', pinnedDate: '2026-09-08' },
+          { id: 'b', title: 'b', area: 'other', status: 'todo', estimateMin: 30, importance: 2, createdAt: '', pinnedDate: '2026-09-09' },
+          { id: 'c', title: 'c', area: 'other', status: 'done', estimateMin: 30, importance: 2, createdAt: '', pinnedDate: '2026-09-20' },
+        ],
+      }),
+    )
+    expect(s.tasks.planned).toBe(2)
+    expect(s.tasks.done).toBe(1)
   })
 })
 

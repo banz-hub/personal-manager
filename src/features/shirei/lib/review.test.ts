@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DayPlan, StudyNode, StudySession, Task, TaskLog } from '../types'
-import { buildReview, carryOver, completeStudy, completeWork } from './review'
+import { buildReview, completeStudy, completeWork } from './review'
 
 const TODAY = '2026-09-07'
 
@@ -81,37 +81,6 @@ describe('完了の記録', () => {
   })
 })
 
-describe('未完了の繰越', () => {
-  it('予定に入っていて終わらなかったタスクは先送り回数が増える', () => {
-    const tasks = [
-      task({ id: 'done', title: '終わった', status: 'done' }),
-      task({ id: 'left', title: '残った' }),
-      task({ id: 'unplanned', title: '予定外' }),
-    ]
-    const { tasks: next, carried } = carryOver(tasks, planWith(['done', 'left']), TODAY)
-
-    expect(carried).toEqual(['left'])
-    expect(next.find((t) => t.id === 'left')?.deferCount).toBe(1)
-    expect(next.find((t) => t.id === 'done')?.deferCount).toBeUndefined()
-    expect(next.find((t) => t.id === 'unplanned')?.deferCount).toBeUndefined()
-  })
-
-  it('締切は勝手に動かさない', () => {
-    const tasks = [task({ id: 'left', title: '残った', dueDate: '2026-09-09' })]
-    const { tasks: next } = carryOver(tasks, planWith(['left']), TODAY)
-    expect(next[0].dueDate).toBe('2026-09-09')
-  })
-
-  it('同じ日に2回繰り越しても二重に数えない', () => {
-    const tasks = [task({ id: 'left', title: '残った' })]
-    const once = carryOver(tasks, planWith(['left']), TODAY)
-    const twice = carryOver(once.tasks, planWith(['left']), TODAY)
-
-    expect(twice.carried).toEqual([])
-    expect(twice.tasks[0].deferCount).toBe(1)
-  })
-})
-
 describe('日次レビュー', () => {
   it('完了・未完了・実績時間を集計する', () => {
     const tasks = [
@@ -163,7 +132,7 @@ describe('日次レビュー', () => {
     })
 
     expect(r.findings.join()).toContain('数学課題')
-    expect(r.findings.join()).toContain('次回の見積もり')
+    expect(r.findings.join()).toContain('目安')
   })
 
   it('実績が予定の半分以下なら、詰め込みすぎを疑う所見を出す', () => {
@@ -197,9 +166,19 @@ describe('日次レビュー', () => {
     expect(r.findings[0]).toContain('すべて終えました')
   })
 
-  it('予定を作っていない日は、その案内だけを返す', () => {
+  it('やることが空の日は、その案内だけを返す', () => {
     const r = buildReview({ date: TODAY, plan: undefined, tasks: [], logs: [], nodes: [], sessions: [] })
-    expect(r.findings.join()).toContain('予定を作っていません')
+    expect(r.findings.join()).toContain('「やること」は空でした')
+  })
+
+  it('その日のリストに入れたタスクで完了・未完了を数える', () => {
+    const tasks = [
+      task({ id: 'a', title: '終わった', status: 'done' }),
+      task({ id: 'b', title: '残った' }),
+    ]
+    const r = buildReview({ date: TODAY, listed: ['a', 'b'], tasks, logs: [], nodes: [], sessions: [] })
+    expect(r.doneTaskIds).toEqual(['a'])
+    expect(r.undoneTaskIds).toEqual(['b'])
   })
 
   it('分野ごとの内訳を出す', () => {
