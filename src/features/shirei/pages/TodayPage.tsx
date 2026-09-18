@@ -12,10 +12,11 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import DayTimeline from '../components/DayTimeline'
 import RunningCard from '../components/RunningCard'
 import TaskForm from '../components/TaskForm'
 import { Banner, Empty, Popup, Sheet } from '../components/ui'
-import { loadYoteichoDay, type FixedItem, type YoteichoDay } from '../lib/bridge/yoteicho'
+import { loadYoteichoDay, type YoteichoDay } from '../lib/bridge/yoteicho'
 import { addDays, formatDate, formatDuration, fromMinutes, nowMinutes, todayKey } from '../lib/date'
 import {
   candidates,
@@ -38,8 +39,8 @@ import {
 } from '../lib/reminders'
 import { completeStudy } from '../lib/review'
 import { recordSleep, summarize } from '../lib/sleep'
+import { freeGaps, longest, sleepOn, totalMin } from '../lib/timeline'
 import { useApp } from '../state/AppContext'
-import { toneOf, labelOf } from '../../yotei/lib/tone'
 import type { Running, Task } from '../types'
 
 /** 「今日」「明日」「昨日」。それ以外は日付だけ */
@@ -153,7 +154,20 @@ export default function TodayPage() {
 
   // 学習の試験は時刻を持たないので「終日」として予定の上に出す
   const exams = data.exams.filter((e) => e.date === date)
-  const items = yoteicho?.items ?? []
+  const items = useMemo(() => yoteicho?.items ?? [], [yoteicho])
+
+  // 24 時間のうち、予定も睡眠も入っていない時間
+  const sleep = useMemo(() => sleepOn(data.sleepLogs, date), [data.sleepLogs, date])
+  const gaps = useMemo(() => freeGaps([...items, ...sleep]), [items, sleep])
+  const widest = longest(gaps)
+  // 今日なら「いまから先」の空きも出す。過ぎた空きはもう使えないので
+  const ahead = isToday
+    ? totalMin(
+        gaps
+          .filter((g) => g.endMin > now)
+          .map((g) => ({ ...g, startMin: Math.max(g.startMin, now) })),
+      )
+    : null
 
   const list = useMemo(() => listOn(data.tasks, date), [data.tasks, date])
   const openCount = list.filter(isOpen).length
@@ -312,10 +326,31 @@ export default function TodayPage() {
 
         {yoteicho === null ? (
           <p className="dim small">読み込み中…</p>
-        ) : items.length === 0 && exams.length === 0 ? (
-          <Empty>予定はありません</Empty>
         ) : (
-          items.map((it) => <EventRow key={it.id} item={it} isToday={isToday} now={now} />)
+          <>
+            <div className="free-sum">
+              <span>
+                空き 合計 <strong>{formatDuration(totalMin(gaps))}</strong>
+                {ahead != null && (
+                  <>
+                    {' '}
+                    ・ いまから <strong>{formatDuration(ahead)}</strong>
+                  </>
+                )}
+              </span>
+              {widest && (
+                <span className="dim small">
+                  いちばん長い空きは {fromMinutes(widest.startMin)}〜
+                  {widest.endMin === 1440 ? '24:00' : fromMinutes(widest.endMin)}（
+                  {formatDuration(widest.endMin - widest.startMin)}）
+                </span>
+              )}
+              {sleep.length === 0 && (
+                <span className="dim small">睡眠が入っていないので、寝ている時間も空きに入っています</span>
+              )}
+            </div>
+            <DayTimeline items={items} sleep={sleep} gaps={gaps} nowMin={isToday ? now : undefined} />
+          </>
         )}
       </section>
 
@@ -479,26 +514,6 @@ export default function TodayPage() {
       )}
 
       {popup && <Popup title={popup.title} body={popup.body} onClose={() => setPopup(null)} />}
-    </div>
-  )
-}
-
-/** 予定 1 件。左の帯とラベルの色が種類を表す */
-function EventRow({ item, isToday, now }: { item: FixedItem; isToday: boolean; now: number }) {
-  const tone = toneOf(item.kind, item.category)
-  const past = isToday && item.endMin <= now
-  const current = isToday && item.startMin <= now && now < item.endMin
-  return (
-    <div className={`ev t-${tone}${past ? ' is-past' : ''}${current ? ' is-now' : ''}`}>
-      <span className="ev-time">
-        {item.start}
-        <span className="ev-end">〜{item.end}</span>
-      </span>
-      <span className="ev-title">
-        {item.title}
-        {item.placeName && <span className="ev-place">{item.placeName}</span>}
-      </span>
-      <span className={`tag t-${tone}`}>{current ? 'いま' : labelOf(item.kind, item.category)}</span>
     </div>
   )
 }
