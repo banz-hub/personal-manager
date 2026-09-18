@@ -408,3 +408,31 @@ describe('集中したセット数', () => {
     expect(s.focusSets).toBe(4)
   })
 })
+
+describe('学習のタスク', () => {
+  it('タイマーの記録を学習の時間に数え、その日のぶん済みを完了に数える', () => {
+    const study = {
+      id: 'st',
+      title: '基本情報',
+      area: 'cert' as const,
+      status: 'todo' as const,
+      estimateMin: 30,
+      importance: 2 as const,
+      createdAt: '',
+      study: true,
+      pinnedDate: '2026-09-08',
+      checkedOn: '2026-09-08',
+    }
+    const s = buildWeekly(
+      input({
+        tasks: [study],
+        logs: [
+          { id: 'l', taskId: 'st', date: '2026-09-08', area: 'cert', plannedMin: 30, actualMin: 50, createdAt: '' },
+        ],
+      }),
+    )
+    expect(s.study.totalMin).toBe(50)
+    expect(s.study.sessions).toBe(1)
+    expect(s.tasks.done).toBe(1)
+  })
+})

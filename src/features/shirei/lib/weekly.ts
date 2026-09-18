@@ -74,7 +74,10 @@ export function buildWeekly(input: WeeklyInput): WeeklySummary {
   )
   const planned = plannedBlocks.length + listed.length
   const doneBlocks =
-    plannedBlocks.filter((b) => b.doneAt).length + listed.filter((t) => t.status === 'done').length
+    plannedBlocks.filter((b) => b.doneAt).length +
+    listed.filter(
+      (t) => t.status === 'done' || (t.study === true && t.checkedOn != null && inWeek(t.checkedOn)),
+    ).length
   const deferred = reviews.reduce((sum, r) => sum + r.deferredTaskIds.length, 0)
 
   const plannedMin = plannedBlocks.reduce(
@@ -87,7 +90,10 @@ export function buildWeekly(input: WeeklyInput): WeeklySummary {
 
   // ---- 学習 ----
   const sessions = input.sessions.filter((s) => inWeek(s.date))
-  const studyMin = sessions.reduce((sum, s) => sum + s.minutes, 0)
+  const studyIds = new Set(input.tasks.filter((t) => t.study).map((t) => t.id))
+  const studyLogs = logs.filter((l) => studyIds.has(l.taskId))
+  const studyMin =
+    sessions.reduce((sum, s) => sum + s.minutes, 0) + studyLogs.reduce((sum, l) => sum + l.actualMin, 0)
   const areaMap = new Map<TaskArea, number>()
   for (const s of sessions) {
     const area = areaOf(input.nodes, s.nodeId)
@@ -121,7 +127,7 @@ export function buildWeekly(input: WeeklyInput): WeeklySummary {
     },
     study: {
       totalMin: studyMin,
-      sessions: sessions.length,
+      sessions: sessions.length + studyLogs.length,
       byArea: [...areaMap.entries()].sort((a, b) => b[1] - a[1]),
       masteredCount,
     },
@@ -221,10 +227,10 @@ function improvementsFor(s: WeeklySummary, input: WeeklyInput): string[] {
   }
 
   // 学習そのものが動いていない
-  if (s.study.sessions === 0 && input.nodes.length > 0) {
+  if (s.study.sessions === 0 && (input.nodes.length > 0 || studyIdsOf(input).size > 0)) {
     out.push({
       severity: 55,
-      text: 'この週は学習の記録がありません。1回20〜30分でも記録を残すと、次の復習日が決まります。',
+      text: 'この週は学習の記録がありません。学習を今日のリストに入れて「今やる」で測ると、ここに時間が出ます。',
     })
   }
 
@@ -254,6 +260,10 @@ function improvementsFor(s: WeeklySummary, input: WeeklyInput): string[] {
     .sort((a, b) => b.severity - a.severity)
     .slice(0, 3)
     .map((c) => c.text)
+}
+
+function studyIdsOf(input: WeeklyInput): Set<string> {
+  return new Set(input.tasks.filter((t) => t.study && t.status !== 'dropped').map((t) => t.id))
 }
 
 /** 前の週・次の週へ動かす */

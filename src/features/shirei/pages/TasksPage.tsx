@@ -35,6 +35,7 @@ export default function TasksPage() {
 
   const list = useMemo(() => {
     return data.tasks
+      .filter((t) => !t.study)
       .filter((t) => {
         if (filter === 'open') return isOpen(t)
         if (filter === 'overdue') return isOverdue(t)
@@ -51,8 +52,8 @@ export default function TasksPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.tasks, filter, area, today])
 
-  const openCount = data.tasks.filter(isOpen).length
-  const overdueCount = data.tasks.filter(isOverdue).length
+  const openCount = data.tasks.filter((t) => !t.study && isOpen(t)).length
+  const overdueCount = data.tasks.filter((t) => !t.study && isOverdue(t)).length
 
   // --- 期限切れの棚卸し。1件ずつ「やる・締切を直す・やめる」を決める ---
   const triage = (task: Task, action: 'today' | 'week' | 'drop') => {

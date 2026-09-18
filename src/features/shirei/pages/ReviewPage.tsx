@@ -397,7 +397,6 @@ function Weekly() {
         <div className="stats">
           <Stat k="学習時間" v={formatDuration(summary.study.totalMin)} />
           <Stat k="回数" v={`${summary.study.sessions}`} />
-          <Stat k="習得" v={`${summary.study.masteredCount}`} />
         </div>
         {summary.study.byArea.length > 0 && (
           <div className="timeline">
@@ -510,8 +509,9 @@ function Periodic({ kind }: { kind: 'month' | 'year' }) {
         nodes: data.nodes,
         plans: data.plans,
         workouts,
+        studyTaskIds: new Set(data.tasks.filter((t) => t.study).map((t) => t.id)),
       }),
-    [buckets, data.logs, data.sessions, data.nodes, data.plans, workouts],
+    [buckets, data.logs, data.sessions, data.nodes, data.plans, data.tasks, workouts],
   )
 
   const total = totalOf(stats)
@@ -543,7 +543,6 @@ function Periodic({ kind }: { kind: 'month' | 'year' }) {
               k="完了率"
               v={latest.planned > 0 ? `${Math.round((latest.done / latest.planned) * 100)}%` : '—'}
             />
-            <Stat k="習得" v={`${latest.masteredCount}`} />
           </div>
           {latest.byArea.length > 0 && (
             <div className="timeline">
@@ -567,7 +566,7 @@ function Periodic({ kind }: { kind: 'month' | 'year' }) {
             <Stat k="筋トレ" v={`${total.workoutCount}回`} />
           </div>
           <p className="dim">
-            予定 {total.planned}件 / 完了 {total.done}件 ・ 習得 {total.masteredCount}項目
+            予定 {total.planned}件 / 完了 {total.done}件
           </p>
         </section>
       )}

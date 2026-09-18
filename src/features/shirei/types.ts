@@ -91,6 +91,14 @@ export interface Task {
   lastWorkedOn?: string
   /** 決まった曜日に出てくるタスク。完了すると次の日付で作り直す */
   repeat?: TaskRepeat
+  /**
+   * 学習のタスク。学習の画面に出る（タスクの画面には出ない）。
+   * 「ITパスポート」のように何日も続けるものなので、今日のリストでチェックしても
+   * タスクそのものは終わらない。その日のぶんが済んだ印（checkedOn）だけ付ける。
+   */
+  study?: boolean
+  /** 学習のタスクを、その日のぶん済みにした日 (YYYY-MM-DD) */
+  checkedOn?: string
   note?: string
 }
 

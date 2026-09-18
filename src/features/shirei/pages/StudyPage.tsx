@@ -1,420 +1,242 @@
+/**
+ * 学習。**学習はタスクとして持ち、時間はタイマーで記録する。**
+ *
+ * ここは「何を勉強しているか」の一覧と、それぞれの累計時間だけ。
+ * 習熟度・優先度・試験からの逆算は持たない。その日にやるものは、
+ * この一覧から自分で今日のリストに入れる（1 ページ目の「リストから選ぶ」からも入れられる）。
+ */
+
 import { useMemo, useState } from 'react'
-import { blankExam, blankNode, BulkAddForm, ExamForm, NodeForm } from '../components/StudyForms'
-import { Banner, Empty, Sheet, Stat } from '../components/ui'
+import { Banner, Empty, Field, Sheet } from '../components/ui'
 import { formatDuration, todayKey } from '../lib/date'
-import {
-  buildExamPlan,
-  buildProgress,
-  childrenOf,
-  isLeaf,
-  leavesOf,
-  rootsOf,
-  staleLeaves,
-  summarizeMastery,
-  upcomingExams,
-  moveNode,
-  withDescendants,
-  type NodeProgress,
-} from '../lib/study'
+import { isOpen } from '../lib/daylist'
+import { newStudyTask, nodesToTasks, removableNodes, studyTotals } from '../lib/studylist'
 import { useApp } from '../state/AppContext'
-import {
-  AREA_LABELS,
-  MASTERY_LABELS,
-  MASTERY_ORDER,
-  type Exam,
-  type Mastery,
-  type StudyNode,
-} from '../types'
+import { AREA_LABELS, type Task, type TaskArea } from '../types'
+
+const AREAS = Object.entries(AREA_LABELS) as Array<[TaskArea, string]>
 
 export default function StudyPage() {
   const { data, upsert, remove, replaceList } = useApp()
-  const [editingNode, setEditingNode] = useState<StudyNode | null>(null)
-  const [editingExam, setEditingExam] = useState<Exam | null>(null)
-  const [open, setOpen] = useState<Set<string>>(new Set())
-  const [bulkParent, setBulkParent] = useState<StudyNode | null>(null)
   const today = todayKey()
+  const [title, setTitle] = useState('')
+  const [area, setArea] = useState<TaskArea>('math')
+  const [editing, setEditing] = useState<Task | null>(null)
+  const [showDone, setShowDone] = useState(false)
+  const [message, setMessage] = useState('')
 
-  const { nodes, exams, sessions } = data
+  const studies = useMemo(() => data.tasks.filter((t) => t.study), [data.tasks])
+  const open = studies.filter(isOpen)
+  const finished = studies.filter((t) => !isOpen(t))
+  const totals = useMemo(() => studyTotals(data.tasks, data.logs), [data.tasks, data.logs])
 
-  const progress = useMemo(() => buildProgress(nodes, sessions, today), [nodes, sessions, today])
-  const examPlans = useMemo(
-    () => upcomingExams(exams, today).map((e) => buildExamPlan(e, nodes, sessions, today)),
-    [exams, nodes, sessions, today],
-  )
-  const stale = useMemo(() => staleLeaves(nodes, progress), [nodes, progress])
+  // 分野ごとにまとめる。並びは AREA_LABELS の順
+  const groups = AREAS.map(([key, label]) => ({
+    key,
+    label,
+    items: open.filter((t) => t.area === key),
+  })).filter((g) => g.items.length > 0)
 
-  const roots = rootsOf(nodes)
-  const allLeafCount = nodes.filter((n) => isLeaf(nodes, n)).length
-  const overall = useMemo(
-    () => summarizeMastery(nodes.filter((n) => isLeaf(nodes, n))),
-    [nodes],
-  )
-
-  const toggle = (id: string) =>
-    setOpen((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-
-  const deleteNode = (node: StudyNode) => {
-    const ids = new Set(withDescendants(nodes, node.id).map((n) => n.id))
-    replaceList(
-      'nodes',
-      nodes.filter((n) => !ids.has(n.id)),
-    )
-    setEditingNode(null)
+  const add = () => {
+    if (!title.trim()) return
+    upsert('tasks', newStudyTask(title, area, new Date().toISOString()))
+    setTitle('')
   }
 
-  const setMastery = (node: StudyNode, mastery: Mastery) => {
-    upsert('nodes', { ...node, mastery })
-  }
+  const toggleToday = (t: Task) =>
+    upsert('tasks', { ...t, pinnedDate: t.pinnedDate === today ? undefined : today })
 
-  /** 同じ親のなかで、ひとつ上/下に動かす */
-  const move = (node: StudyNode, delta: number) => {
-    const siblings = childrenOf(nodes, node.parentId)
-    const i = siblings.findIndex((n) => n.id === node.id)
-    const j = i + delta
-    if (i < 0 || j < 0 || j >= siblings.length) return
-    // order を振り直す。歯抜けのまま動かすと順番が安定しない
-    const reordered = [...siblings]
-    ;[reordered[i], reordered[j]] = [reordered[j], reordered[i]]
-    const byId = new Map(reordered.map((n, k) => [n.id, k]))
+  // 前の版の学習項目を、学習のタスクへ移す。押したときだけ動く
+  const migrate = () => {
+    const created = nodesToTasks(data.nodes, new Date().toISOString())
+    const removable = new Set(removableNodes(data.nodes, data.sessions).map((n) => n.id))
+    replaceList('tasks', [...data.tasks, ...created])
     replaceList(
       'nodes',
-      nodes.map((n) => (byId.has(n.id) ? { ...n, order: byId.get(n.id) as number } : n)),
+      data.nodes.filter((n) => !removable.has(n.id)),
     )
+    setMessage(`${created.length}件を学習のタスクに移しました`)
   }
 
   return (
     <div className="page">
       <div className="row">
         <strong className="grow">学習</strong>
-        <span className="dim">
-          {allLeafCount > 0 ? `習得 ${overall.counts.mastered}/${allLeafCount}` : ''}
-        </span>
+        <span className="dim">{open.length}件</span>
       </div>
 
-      {allLeafCount > 0 && (
-        <div className="stats">
-          <Stat k="項目" v={`${allLeafCount}`} />
-          <Stat k="習得" v={`${overall.counts.mastered}`} />
-          <Stat k="進み具合" v={`${Math.round(overall.progress * 100)}%`} />
-        </div>
+      {message && <Banner>{message}</Banner>}
+
+      {data.nodes.length > 0 && (
+        <Banner>
+          前の形の学習項目が{data.nodes.length}件あります（習熟度つきのもの）。
+          学習のタスクに移すと、ここに並び、今日のリストに入れられるようになります。
+          <div className="row tight" style={{ marginTop: 8 }}>
+            <button type="button" className="btn sm primary" onClick={migrate}>
+              学習のタスクに移す
+            </button>
+          </div>
+        </Banner>
       )}
 
-      {/* --- 試験 --- */}
-      <section className="bucket">
-        <div className="row">
-          <h2 className="section grow">試験</h2>
-          <button type="button" className="btn sm" onClick={() => setEditingExam(blankExam())}>
-            ＋ 追加
-          </button>
-        </div>
+      <form
+        className="study-add"
+        onSubmit={(e) => {
+          e.preventDefault()
+          add()
+        }}
+      >
+        <input
+          value={title}
+          placeholder="例: 基本情報技術者、複素解析学B"
+          aria-label="学習すること"
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <select value={area} aria-label="分野" onChange={(e) => setArea(e.target.value as TaskArea)}>
+          {AREAS.map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
+        </select>
+        <button type="submit" className="btn primary" disabled={!title.trim()}>
+          追加
+        </button>
+      </form>
 
-        {examPlans.length === 0 ? (
-          <Empty>登録された試験がありません</Empty>
-        ) : (
-          examPlans.map((p) => (
-            <button
-              key={p.exam.id}
-              type="button"
-              className={`task ${p.reviewPhase ? 'b-urgent' : 'b-important'}`}
-              style={{ textAlign: 'left', cursor: 'pointer' }}
-              onClick={() => setEditingExam(p.exam)}
-            >
-              <span className="task-title">{p.exam.title}</span>
-              <span className="task-meta">
-                <span className="tag">{p.exam.date}</span>
-                <span>あと{p.daysLeft}日</span>
-                <span>
-                  範囲 {p.leaves.length}項目（習得 {p.summary.counts.mastered}）
-                </span>
-                {p.requiredMin > 0 && <span>1日 {formatDuration(p.perDayMin)}</span>}
-              </span>
-              {p.findings.map((f) => (
-                <span key={f} className="reason">
-                  {f}
-                </span>
-              ))}
-            </button>
-          ))
-        )}
-      </section>
-
-      {/* --- しばらくやっていないもの --- */}
-      {stale.length > 0 && (
-        <section className="bucket">
-          <h2 className="section">しばらく空いている項目</h2>
-          <Banner alert>
-            <ul>
-              {stale.map((n) => (
-                <li key={n.id}>
-                  {n.title} — {progress.get(n.id)?.staleDays}日ぶり（{MASTERY_LABELS[n.mastery ?? 'new']}）
-                </li>
-              ))}
+      {groups.length === 0 ? (
+        <Empty>まだありません。上で「何を勉強するか」を書いて追加してください</Empty>
+      ) : (
+        groups.map((g) => (
+          <section key={g.key} className="bucket">
+            <h2 className="section">{g.label}</h2>
+            <ul className="todo">
+              {g.items.map((t) => {
+                const total = totals.get(t.id)
+                const inToday = t.pinnedDate === today
+                return (
+                  <li key={t.id} className="todo-row">
+                    <button type="button" className="todo-title" onClick={() => setEditing(t)}>
+                      {t.title}
+                      <span className="todo-due">
+                        {total
+                          ? `累計 ${formatDuration(total.minutes)} ・ 最後 ${total.lastDate?.slice(5).replace('-', '/')}`
+                          : 'まだ記録なし'}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn sm${inToday ? ' ghost' : ''}`}
+                      onClick={() => toggleToday(t)}
+                    >
+                      {inToday ? '今日のリストから外す' : '今日やる'}
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
-          </Banner>
+          </section>
+        ))
+      )}
+
+      <p className="hint">
+        時間は、1 ページ目の「今日やること」で「今やる」を押して測ると、ここに累計が出ます。
+        今日のリストでチェックを付けても学習そのものは終わらず、その日のぶんが済んだことになります。
+      </p>
+
+      {finished.length > 0 && (
+        <section className="bucket">
+          <button type="button" className="btn ghost sm" onClick={() => setShowDone(!showDone)}>
+            終えた学習 {finished.length}件 {showDone ? 'を隠す' : 'を見る'}
+          </button>
+          {showDone &&
+            finished.map((t) => (
+              <div key={t.id} className="todo-row is-done">
+                <span className="todo-title">
+                  {t.title}
+                  <span className="todo-due">
+                    累計 {formatDuration(totals.get(t.id)?.minutes ?? 0)}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  className="btn ghost sm"
+                  onClick={() => upsert('tasks', { ...t, status: 'doing', doneAt: undefined })}
+                >
+                  再開
+                </button>
+              </div>
+            ))}
         </section>
       )}
 
-      {/* --- 範囲のツリー --- */}
-      <section className="bucket">
-        <div className="row">
-          <h2 className="section grow">学習の範囲</h2>
-          <button
-            type="button"
-            className="btn sm"
-            onClick={() => setEditingNode(blankNode(undefined, roots.length))}
-          >
-            ＋ 科目
-          </button>
-        </div>
-
-        {roots.length === 0 ? (
-          <Empty>
-            まず科目を作ってください。科目 → 単元 → 項目 のように、下に足していけます。
-          </Empty>
-        ) : (
-          <div className="tree">
-            {roots.map((root) => (
-              <TreeNode
-                key={root.id}
-                node={root}
-                nodes={nodes}
-                depth={0}
-                open={open}
-                progress={progress}
-                onToggle={toggle}
-                onEdit={setEditingNode}
-                onAddChild={(parent) =>
-                  setEditingNode(blankNode(parent.id, childrenOf(nodes, parent.id).length))
-                }
-                onBulkAdd={setBulkParent}
-                onMove={move}
-                onMastery={setMastery}
-              />
-            ))}
+      {editing && (
+        <Sheet onClose={() => setEditing(null)}>
+          <strong>学習を直す</strong>
+          <Field label="学習すること">
+            <input
+              value={editing.title}
+              onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+            />
+          </Field>
+          <Field label="分野">
+            <select
+              value={editing.area}
+              onChange={(e) => setEditing({ ...editing, area: e.target.value as TaskArea })}
+            >
+              {AREAS.map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <div className="row">
+            <button
+              type="button"
+              className="btn primary grow"
+              disabled={!editing.title.trim()}
+              onClick={() => {
+                upsert('tasks', { ...editing, title: editing.title.trim() })
+                setEditing(null)
+              }}
+            >
+              保存
+            </button>
+            <button type="button" className="btn grow" onClick={() => setEditing(null)}>
+              やめる
+            </button>
           </div>
-        )}
-      </section>
-
-      {editingNode && (
-        <Sheet onClose={() => setEditingNode(null)}>
-          <NodeForm
-            initial={editingNode}
-            nodes={nodes}
-            onSave={(n) => {
-              const before = nodes.find((x) => x.id === n.id)
-              if (before && before.parentId !== n.parentId) {
-                // 付け替えは並びの詰め直しと分野の扱いがあるので moveNode に任せる
-                const moved = moveNode(
-                  nodes.map((x) => (x.id === n.id ? { ...n, parentId: before.parentId } : x)),
-                  n.id,
-                  n.parentId,
-                )
-                replaceList('nodes', moved)
-              } else {
-                upsert('nodes', n)
-              }
-              // 追加した親は開いた状態にしておく (足したものが見えないと不安なので)
-              if (n.parentId) setOpen((prev) => new Set(prev).add(n.parentId as string))
-              setEditingNode(null)
-            }}
-            onCancel={() => setEditingNode(null)}
-            onDelete={deleteNode}
-          />
-        </Sheet>
-      )}
-
-      {bulkParent && (
-        <Sheet onClose={() => setBulkParent(null)}>
-          <BulkAddForm
-            parent={bulkParent}
-            nodes={nodes}
-            onSave={(created) => {
-              // まとめて入れるので一度に置き換える (1件ずつだと取りこぼす)
-              replaceList('nodes', [...nodes, ...created])
-              setOpen((prev) => new Set(prev).add(bulkParent.id))
-              setBulkParent(null)
-            }}
-            onCancel={() => setBulkParent(null)}
-          />
-        </Sheet>
-      )}
-
-      {editingExam && (
-        <Sheet onClose={() => setEditingExam(null)}>
-          <ExamForm
-            initial={editingExam}
-            nodes={nodes}
-            onSave={(e) => {
-              upsert('exams', e)
-              setEditingExam(null)
-            }}
-            onCancel={() => setEditingExam(null)}
-            onDelete={(id) => {
-              remove('exams', id)
-              setEditingExam(null)
-            }}
-          />
+          <div className="row">
+            <button
+              type="button"
+              className="btn ghost sm grow"
+              onClick={() => {
+                upsert('tasks', {
+                  ...editing,
+                  status: 'done',
+                  doneAt: new Date().toISOString(),
+                  pinnedDate: undefined,
+                })
+                setEditing(null)
+              }}
+            >
+              この学習を終える
+            </button>
+            <button
+              type="button"
+              className="btn ghost sm danger grow"
+              onClick={() => {
+                if (!window.confirm(`「${editing.title}」を消しますか？（測った記録は残ります）`)) return
+                remove('tasks', editing.id)
+                setEditing(null)
+              }}
+            >
+              消す
+            </button>
+          </div>
         </Sheet>
       )}
     </div>
-  )
-}
-
-function TreeNode({
-  node,
-  nodes,
-  depth,
-  open,
-  progress,
-  onToggle,
-  onEdit,
-  onAddChild,
-  onBulkAdd,
-  onMove,
-  onMastery,
-}: {
-  node: StudyNode
-  nodes: StudyNode[]
-  depth: number
-  open: Set<string>
-  progress: Map<string, NodeProgress>
-  onToggle: (id: string) => void
-  onEdit: (n: StudyNode) => void
-  onAddChild: (n: StudyNode) => void
-  onBulkAdd: (n: StudyNode) => void
-  onMove: (n: StudyNode, delta: number) => void
-  onMastery: (n: StudyNode, m: Mastery) => void
-}) {
-  const children = childrenOf(nodes, node.id)
-  const leaf = children.length === 0
-  const isOpen = open.has(node.id)
-  const p = progress.get(node.id)
-  const summary = leaf ? null : summarizeMastery(leavesOf(nodes, node.id))
-
-  return (
-    <>
-      <div className={`tree-row m-${node.mastery ?? 'new'}`} style={{ paddingLeft: depth * 16 }}>
-        {leaf ? (
-          <span className="tree-bullet" aria-hidden>
-            ·
-          </span>
-        ) : (
-          <button
-            type="button"
-            className="tree-toggle"
-            aria-expanded={isOpen}
-            onClick={() => onToggle(node.id)}
-          >
-            {isOpen ? '▾' : '▸'}
-          </button>
-        )}
-
-        <button type="button" className="tree-title" onClick={() => onEdit(node)}>
-          <span>{node.title}</span>
-          <span className="tree-meta">
-            {/* 科目名と分野が同じときにタグを出すと、同じ言葉が二度並ぶだけになる */}
-            {!node.parentId && node.area && AREA_LABELS[node.area] !== node.title && (
-              <span className="tag">{AREA_LABELS[node.area]}</span>
-            )}
-            {leaf ? (
-              <>
-                <span className={`tag m-${node.mastery ?? 'new'}`}>
-                  {MASTERY_LABELS[node.mastery ?? 'new']}
-                </span>
-                {p && p.totalMin > 0 && <span>{formatDuration(p.totalMin)}</span>}
-                {p?.staleDays != null && <span>{p.staleDays}日ぶり</span>}
-                {p?.accuracy != null && <span>正答{Math.round(p.accuracy * 100)}%</span>}
-              </>
-            ) : (
-              summary && (
-                <>
-                  <span>
-                    {summary.counts.mastered}/{summary.total} 習得
-                  </span>
-                  {p && p.totalMin > 0 && <span>{formatDuration(p.totalMin)}</span>}
-                </>
-              )
-            )}
-          </span>
-        </button>
-
-        <span className="row tight" style={{ gap: 2 }}>
-          <button
-            type="button"
-            className="btn ghost sm"
-            title="上へ"
-            onClick={() => onMove(node, -1)}
-          >
-            ▲
-          </button>
-          <button
-            type="button"
-            className="btn ghost sm"
-            title="下へ"
-            onClick={() => onMove(node, 1)}
-          >
-            ▼
-          </button>
-          <button
-            type="button"
-            className="btn ghost sm"
-            title="下に足す"
-            onClick={() => onAddChild(node)}
-          >
-            ＋
-          </button>
-          {!leaf && (
-            <button
-              type="button"
-              className="btn ghost sm"
-              title="まとめて追加"
-              onClick={() => onBulkAdd(node)}
-            >
-              ≡
-            </button>
-          )}
-        </span>
-      </div>
-
-      {/* 葉は理解度をその場で変えられるようにする。編集画面を開かせると続かない */}
-      {leaf && (
-        <div className="mastery-row" style={{ paddingLeft: depth * 16 + 22 }}>
-          {MASTERY_ORDER.map((m) => (
-            <button
-              key={m}
-              type="button"
-              className={`chip${(node.mastery ?? 'new') === m ? ' is-on' : ''} m-${m}`}
-              onClick={() => onMastery(node, m)}
-            >
-              {MASTERY_LABELS[m]}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {!leaf &&
-        isOpen &&
-        children.map((child) => (
-          <TreeNode
-            key={child.id}
-            node={child}
-            nodes={nodes}
-            depth={depth + 1}
-            open={open}
-            progress={progress}
-            onToggle={onToggle}
-            onEdit={onEdit}
-            onAddChild={onAddChild}
-            onBulkAdd={onBulkAdd}
-            onMove={onMove}
-            onMastery={onMastery}
-          />
-        ))}
-    </>
   )
 }

@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import DayTimeline from '../components/DayTimeline'
 import RunningCard from '../components/RunningCard'
 import TaskForm from '../components/TaskForm'
@@ -21,7 +21,7 @@ import { addDays, formatDate, formatDuration, fromMinutes, nowMinutes, todayKey 
 import {
   candidates,
   carryToNextDay,
-  isOpen,
+  doneOn,
   leftovers,
   listOn,
   logTimer,
@@ -56,6 +56,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 export default function TodayPage() {
   const { data, upsert, remove, replaceList } = useApp()
   const [params, setParams] = useSearchParams()
+  const navigate = useNavigate()
   const today = todayKey()
   const requested = params.get('d')
   const date = requested && DATE_RE.test(requested) ? requested : today
@@ -128,19 +129,13 @@ export default function TodayPage() {
             date: today,
             tasks: data.tasks,
             beforeMin: settings.notifyBeforeMin,
-            nodes: data.nodes,
-            sessions: data.sessions,
-            reviewAt: settings.dayStart,
           })
         : [],
     [
       settings.notifyEnabled,
       settings.notifyBeforeMin,
-      settings.dayStart,
       today,
       data.tasks,
-      data.nodes,
-      data.sessions,
     ],
   )
   useEffect(() => {
@@ -170,7 +165,7 @@ export default function TodayPage() {
     : null
 
   const list = useMemo(() => listOn(data.tasks, date), [data.tasks, date])
-  const openCount = list.filter(isOpen).length
+  const openCount = list.filter((t) => !doneOn(t, date)).length
   const left = useMemo(() => (isToday ? leftovers(data.tasks, date) : []), [data.tasks, date, isToday])
   const choices = useMemo(() => candidates(data.tasks, date), [data.tasks, date])
 
@@ -210,7 +205,7 @@ export default function TodayPage() {
     upsert(
       'running',
       startRun(
-        { id: `task:${t.id}`, start: '00:00', end: fromMinutes(planned), kind: 'task', taskId: t.id, title: t.title },
+        { id: `task:${t.id}`, start: '00:00', end: fromMinutes(planned), kind: t.study ? 'study' : 'task', taskId: t.id, title: t.title },
         Date.now(),
         today,
       ),
@@ -387,7 +382,7 @@ export default function TodayPage() {
         ) : (
           <ul className="todo">
             {list.map((t) => {
-              const done = !isOpen(t)
+              const done = doneOn(t, date)
               return (
                 <li key={t.id} className={`todo-row${done ? ' is-done' : ''}${running?.taskId === t.id ? ' is-running' : ''}`}>
                   <button
@@ -400,8 +395,14 @@ export default function TodayPage() {
                   >
                     {done ? '✓' : ''}
                   </button>
-                  <button type="button" className="todo-title" onClick={() => setEditing(t)}>
-                    {t.title}
+                  <button
+                    type="button"
+                    className="todo-title"
+                    onClick={() => (t.study ? navigate('/study') : setEditing(t))}
+                  >
+                    <span>
+                      {t.study && <span className="tag study-tag">学習</span>} {t.title}
+                    </span>
                     {t.dueDate && (
                       <span className={`todo-due${t.dueDate <= date ? ' is-near' : ''}`}>
                         締切 {t.dueDate === date ? '今日' : t.dueDate.slice(5).replace('-', '/')}
@@ -470,7 +471,9 @@ export default function TodayPage() {
               {choices.map((t) => (
                 <li key={t.id} className="todo-row">
                   <button type="button" className="todo-title" onClick={() => pick(t)}>
-                    {t.title}
+                    <span>
+                      {t.study && <span className="tag study-tag">学習</span>} {t.title}
+                    </span>
                     <span className="todo-due">
                       {t.dueDate ? `締切 ${t.dueDate.slice(5).replace('-', '/')}` : ''}
                       {t.pinnedDate ? ` ・${t.pinnedDate.slice(5).replace('-', '/')}のリストから移す` : ''}

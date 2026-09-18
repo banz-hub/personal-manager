@@ -130,11 +130,16 @@ export function buildReview(input: ReviewInput): DailyReview {
   const plannedIds = [...new Set([...(listed ?? []), ...(plan ? plannedTaskIds(plan) : [])])]
   const plannedNodes = plan ? plannedNodeIds(plan) : []
 
-  const doneTaskIds = plannedIds.filter((id) => byId.get(id)?.status === 'done')
+  // 学習のタスクは終わらないので、その日のぶん済みの印で見る
+  const isDone = (id: string) => {
+    const t = byId.get(id)
+    return t != null && (t.status === 'done' || (t.study === true && t.checkedOn === date))
+  }
+  const doneTaskIds = plannedIds.filter(isDone)
   const workedIds = new Set(logs.map((l) => l.taskId))
   const undoneTaskIds = plannedIds.filter((id) => {
     const t = byId.get(id)
-    return t != null && t.status !== 'done' && t.status !== 'dropped'
+    return t != null && !isDone(id) && t.status !== 'dropped'
   })
   const deferredTaskIds = undoneTaskIds.filter((id) => !workedIds.has(id))
 
@@ -147,7 +152,10 @@ export function buildReview(input: ReviewInput): DailyReview {
     ? workBlocks(plan).reduce((sum, b) => sum + (toMinutes(b.end) - toMinutes(b.start)), 0)
     : 0
   const taskMin = logs.reduce((sum, l) => sum + l.actualMin, 0)
-  const studyMin = sessions.reduce((sum, s) => sum + s.minutes, 0)
+  // 学習の時間 = 前の版の学習記録 + 学習のタスクをタイマーで測った時間
+  const studyMin =
+    sessions.reduce((sum, s) => sum + s.minutes, 0) +
+    logs.filter((l) => byId.get(l.taskId)?.study).reduce((sum, l) => sum + l.actualMin, 0)
 
   return {
     id: date,

@@ -1736,3 +1736,33 @@ table.compare td:first-child {
   color: var(--accent);
   border-color: var(--accent);
 }
+
+/* ---------- 学習 ---------- */
+.study-add {
+  display: flex;
+  gap: 8px;
+}
+.study-add input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.study-add select {
+  flex: 0 0 auto;
+  width: auto;
+}
+.study-add .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+/* 今日のリストの中で、学習のタスクだと分かる印 */
+.tag.study-tag {
+  color: var(--k-study);
+  border-color: var(--k-study);
+  font-size: 10px;
+  padding: 0 6px;
+  vertical-align: 1px;
+}
+.btn.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}

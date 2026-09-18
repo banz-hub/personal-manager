@@ -3,6 +3,7 @@ import type { Task } from '../types'
 import {
   candidates,
   carryToNextDay,
+  doneOn,
   leftovers,
   listOn,
   logTimer,
@@ -126,5 +127,33 @@ describe('前の日までの残り', () => {
     const r = pullLeftovers(tasks, D)
     expect(r.carried).toEqual(['old'])
     expect(listOn(r.tasks, D).map((t) => t.id).sort()).toEqual(['old', 'today'])
+  })
+})
+
+describe('学習のタスク', () => {
+  const study = (id: string, patch: Partial<Task> = {}) =>
+    task(id, { study: true, recurring: true, estimateMin: 3000, ...patch })
+
+  it('チェックしてもタスクは終わらず、その日のぶん済みの印だけ付く', () => {
+    let tasks = [study('it', { pinnedDate: D })]
+    tasks = toggleDone(tasks, 'it', D, NOW)
+    expect(tasks[0].status).toBe('todo')
+    expect(tasks[0].checkedOn).toBe(D)
+    expect(doneOn(tasks[0], D)).toBe(true)
+    // 次の日には、まだやっていないものとして見える
+    expect(doneOn(tasks[0], '2026-09-19')).toBe(false)
+    tasks = toggleDone(tasks, 'it', D, NOW)
+    expect(tasks[0].checkedOn).toBeUndefined()
+  })
+
+  it('その日のぶん済みなら、残りとして翌日へ送らない', () => {
+    const tasks = [study('done', { pinnedDate: D, checkedOn: D }), study('left', { pinnedDate: D })]
+    expect(carryToNextDay(tasks, D).carried).toEqual(['left'])
+    expect(leftovers(tasks, '2026-09-19').map((x) => x.id)).toEqual(['left'])
+  })
+
+  it('次の日の候補にまた出る', () => {
+    const tasks = [study('it', { pinnedDate: D, checkedOn: D })]
+    expect(candidates(tasks, '2026-09-19').map((x) => x.id)).toEqual(['it'])
   })
 })

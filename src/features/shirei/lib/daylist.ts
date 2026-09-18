@@ -18,13 +18,22 @@ export function isOpen(t: Task): boolean {
   return t.status === 'todo' || t.status === 'doing'
 }
 
+/**
+ * その日のリストで済みになっているか。
+ * 学習のタスクは何日も続くので、タスクの状態ではなく「その日のぶん済み」の印で見る。
+ */
+export function doneOn(t: Task, date: string): boolean {
+  if (t.study && isOpen(t)) return t.checkedOn === date
+  return !isOpen(t)
+}
+
 /** その日のリスト。まだのものが上、済んだものは下へ。それぞれ入れた順 */
 export function listOn(tasks: Task[], date: string): Task[] {
   return tasks
     .filter((t) => t.pinnedDate === date && t.status !== 'dropped')
     .sort((a, b) => {
-      const ad = isOpen(a) ? 0 : 1
-      const bd = isOpen(b) ? 0 : 1
+      const ad = doneOn(a, date) ? 1 : 0
+      const bd = doneOn(b, date) ? 1 : 0
       if (ad !== bd) return ad - bd
       return a.createdAt.localeCompare(b.createdAt)
     })
@@ -72,6 +81,15 @@ export function toggleDone(tasks: Task[], id: string, date: string, nowIso: stri
   const task = tasks.find((t) => t.id === id)
   if (!task) return tasks
 
+  // 学習はタスクを終わらせず、その日のぶん済みの印だけ付け外しする
+  if (task.study && isOpen(task)) {
+    const next: Task =
+      task.checkedOn === date
+        ? { ...task, checkedOn: undefined }
+        : { ...task, checkedOn: date, lastWorkedOn: date }
+    return tasks.map((t) => (t.id === id ? next : t))
+  }
+
   if (!isOpen(task)) {
     const reopened: Task = {
       ...task,
@@ -112,7 +130,7 @@ export function carryToNextDay(tasks: Task[], date: string): CarryResult {
   const nextDay = addDays(date, 1)
   const carried: string[] = []
   const next = tasks.map((t) => {
-    if (t.pinnedDate !== date || !isOpen(t)) return t
+    if (t.pinnedDate !== date || doneOn(t, date)) return t
     carried.push(t.id)
     return {
       ...t,
@@ -163,14 +181,16 @@ export function logTimer(
  * 送り忘れた晩があっても、次に開いた日に拾えるようにする。
  */
 export function leftovers(tasks: Task[], date: string): Task[] {
-  return tasks.filter((t) => isOpen(t) && t.pinnedDate != null && t.pinnedDate < date)
+  return tasks.filter(
+    (t) => t.pinnedDate != null && t.pinnedDate < date && !doneOn(t, t.pinnedDate),
+  )
 }
 
 /** 前の日までの残りを、その日のリストへまとめて移す */
 export function pullLeftovers(tasks: Task[], date: string): CarryResult {
   const carried: string[] = []
   const next = tasks.map((t) => {
-    if (!isOpen(t) || t.pinnedDate == null || t.pinnedDate >= date) return t
+    if (t.pinnedDate == null || t.pinnedDate >= date || doneOn(t, t.pinnedDate)) return t
     carried.push(t.id)
     return { ...t, pinnedDate: date, deferCount: (t.deferCount ?? 0) + 1, deferredOn: t.pinnedDate }
   })

@@ -169,3 +169,22 @@ describe('月次・年次の集計', () => {
     expect(trendOf(buildStats({ buckets: monthBuckets(TODAY, 1), logs, sessions: [], nodes: [], plans: [], workouts: null }))).toBeNull()
   })
 })
+
+describe('学習のタスクの時間', () => {
+  it('学習のタスクの記録はタスクではなく学習に数える', () => {
+    const [b] = buildStats({
+      buckets: monthBuckets(TODAY, 1),
+      logs: [
+        { id: '1', taskId: 'st', date: TODAY, area: 'cert', plannedMin: 30, actualMin: 40, createdAt: '' },
+        { id: '2', taskId: 'tk', date: TODAY, area: 'other', plannedMin: 30, actualMin: 20, createdAt: '' },
+      ],
+      sessions: [],
+      nodes: [],
+      plans: [],
+      workouts: null,
+      studyTaskIds: new Set(['st']),
+    })
+    expect(b.studyMin).toBe(40)
+    expect(b.taskMin).toBe(20)
+  })
+})

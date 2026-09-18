@@ -81,6 +81,8 @@ export interface StatsInput {
   nodes: StudyNode[]
   plans: DayPlan[]
   workouts: WorkoutDay[] | null
+  /** 学習のタスクの id。そのタスクの記録はタスクではなく学習の時間に数える */
+  studyTaskIds?: Set<string>
 }
 
 export function buildStats(input: StatsInput): PeriodStats[] {
@@ -92,8 +94,11 @@ export function buildStats(input: StatsInput): PeriodStats[] {
     const plans = input.plans.filter((p) => inRange(p.date))
     const workouts = (input.workouts ?? []).filter((w) => inRange(w.date))
 
-    const taskMin = logs.reduce((sum, l) => sum + l.actualMin, 0)
-    const studyMin = sessions.reduce((sum, s) => sum + s.minutes, 0)
+    const isStudy = (l: TaskLog) => input.studyTaskIds?.has(l.taskId) ?? false
+    const taskMin = logs.filter((l) => !isStudy(l)).reduce((sum, l) => sum + l.actualMin, 0)
+    const studyMin =
+      sessions.reduce((sum, s) => sum + s.minutes, 0) +
+      logs.filter(isStudy).reduce((sum, l) => sum + l.actualMin, 0)
     const workoutMin = workouts.reduce((sum, w) => sum + w.minutes, 0)
 
     const areaMap = new Map<TaskArea, number>()
