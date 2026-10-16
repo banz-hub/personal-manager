@@ -5,6 +5,7 @@ import { newId } from '../lib/id'
 import { knownStations } from '../lib/routes'
 import { payTypeOf } from '../lib/payroll'
 import { selectionFor } from '../lib/classSlots'
+import { guessCategory } from '../lib/guess'
 import { CATEGORY_LABELS, type EventCategory, type EventItem } from '../types'
 import { ChipGroup, Field, FieldRow, StationInput } from './ui'
 
@@ -34,6 +35,11 @@ export function blankEvent(dateKey: string, category: EventCategory = 'private')
  * 予定の入力フォーム。
  * 場所は「登録済みの場所」から選ぶか、駅名を直接書くかのどちらか。
  * 登録済みを選べば駅と徒歩時間が自動で入るので、毎回打たなくてよい。
+ *
+ * 種類（＝カレンダーの色）は**題名から自動で入れる。**
+ * 「面接」と書けば就活、「歯医者」と書けば私用。当てた理由も下に出す。
+ * ただし**自分で選び直したら、そのあとは二度と書き換えない。**
+ * 選んだ種類が勝手に戻ると、色が信用できなくなるため。
  */
 export default function EventForm({
   value,
@@ -44,11 +50,37 @@ export default function EventForm({
 }) {
   const { data } = useApp()
   const [usePlace, setUsePlace] = useState(Boolean(value.placeId) || data.places.length > 0)
+  /**
+   * 種類を自動で入れてよいか。
+   * 作りかけ（題名がまだ空）のときだけ自動にする。前に保存した予定を開いたときは触らない。
+   */
+  const [auto, setAuto] = useState(() => value.title.trim() === '')
+  const [guessed, setGuessed] = useState<string | null>(null)
   const stations = useMemo(
     () => knownStations(data.legs, [data.profile.homeStation, ...data.places.map((p) => p.station), ...allStations()]),
     [data.legs, data.places, data.profile.homeStation],
   )
   const patch = (p: Partial<EventItem>) => onChange({ ...value, ...p })
+
+  /** 題名を書き換えたとき。種類を当てて、まだ自分で選んでいなければ入れる */
+  const changeTitle = (title: string) => {
+    if (!auto) {
+      patch({ title })
+      return
+    }
+    const guess = guessCategory({
+      title,
+      jobNames: data.jobs.map((j) => j.name),
+      tripNames: data.trips.map((t) => t.name),
+    })
+    if (!guess) {
+      setGuessed(null)
+      patch({ title })
+      return
+    }
+    setGuessed(`${guess.reason}から${CATEGORY_LABELS[guess.category]}にしました`)
+    patch({ title, category: guess.category })
+  }
   const selectedJob = data.jobs.find((j) => j.id === value.jobId)
   const hasSlots = (selectedJob?.classSlots?.length ?? 0) > 0
   const slotInfo =
@@ -61,14 +93,22 @@ export default function EventForm({
           type="text"
           value={value.title}
           placeholder="例) 3年ゼミ / 面接(◯◯社) / 京都旅行"
-          onChange={(e) => patch({ title: e.target.value })}
+          onChange={(e) => changeTitle(e.target.value)}
         />
       </Field>
 
-      <Field label="種類">
+      <Field
+        label="種類（カレンダーの色）"
+        hint={auto ? '題名から自動で入ります。選び直すと、そのあとは変わりません' : undefined}
+      >
         <select
           value={value.category}
-          onChange={(e) => patch({ category: e.target.value as EventCategory })}
+          onChange={(e) => {
+            // 自分で選んだら、そのあとは題名を書き換えても触らない
+            setAuto(false)
+            setGuessed(null)
+            patch({ category: e.target.value as EventCategory })
+          }}
         >
           {CATEGORIES.map(([key, label]) => (
             <option key={key} value={key}>
@@ -77,6 +117,8 @@ export default function EventForm({
           ))}
         </select>
       </Field>
+
+      {guessed ? <p className="muted small">{guessed}</p> : null}
 
       <FieldRow>
         <Field label="日付">
