@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EventItem } from '../types'
-import { buildIcs, esc, eventsToExport, fold, titleOf, tripsToExport } from './ics'
+import { buildIcs, esc, eventsToExport, fold, titleOf, tripsToExport, utcOffset } from './ics'
 
 const ev = (patch: Partial<EventItem> & { id: string }): EventItem => ({
   title: '',
@@ -34,31 +34,45 @@ describe('出す予定を選ぶ', () => {
 })
 
 describe('.ics を組み立てる', () => {
-  it('UTC の時刻と、読み込み直しても増えない UID を書く', () => {
+  it('入力したとおりの時刻に、時間帯を添えて書く', () => {
     const text = buildIcs([ev({ id: 'e1', title: '面接', category: 'jobhunt', start: '11:00', end: '12:00' })], {
       now: NOW,
+      timeZone: 'Asia/Tokyo',
     })
     expect(text).toContain('UID:yotei-e1@banz-hub.github.io')
-    // 端末は JST。11:00 JST は 02:00 UTC
-    expect(text).toContain('DTSTART:20261016T020000Z')
-    expect(text).toContain('DTEND:20261016T030000Z')
+    // 11:00 と書いたら 11:00。UTC に直して書かない（読み込んだ先で 9 時間ずれるため）
+    expect(text).toContain('DTSTART;TZID=Asia/Tokyo:20261016T110000')
+    expect(text).toContain('DTEND;TZID=Asia/Tokyo:20261016T120000')
+    expect(text).not.toContain('DTSTART:20261016T020000Z')
     expect(text).toContain('SUMMARY:面接')
     expect(text).toContain('CATEGORIES:就活')
     expect(text.startsWith('BEGIN:VCALENDAR')).toBe(true)
     expect(text.trimEnd().endsWith('END:VCALENDAR')).toBe(true)
   })
 
+  it('時間帯の説明を付ける。これが無いと読む側が時刻を決められない', () => {
+    const text = buildIcs([ev({ id: 'e1' })], { now: NOW, timeZone: 'Asia/Tokyo' })
+    expect(text).toContain('X-WR-TIMEZONE:Asia/Tokyo')
+    expect(text).toContain('BEGIN:VTIMEZONE')
+    expect(text).toContain('TZID:Asia/Tokyo')
+    expect(text).toContain('TZOFFSETTO:+0900')
+    expect(utcOffset(NOW)).toBe('+0900')
+  })
+
   it('日をまたぐ予定は、終わりを次の日にする', () => {
-    const text = buildIcs([ev({ id: 'n', start: '22:00', end: '00:30' })], { now: NOW })
-    expect(text).toContain('DTSTART:20261016T130000Z')
-    expect(text).toContain('DTEND:20261016T153000Z')
+    const text = buildIcs([ev({ id: 'n', start: '22:00', end: '00:30' })], {
+      now: NOW,
+      timeZone: 'Asia/Tokyo',
+    })
+    expect(text).toContain('DTSTART;TZID=Asia/Tokyo:20261016T220000')
+    expect(text).toContain('DTEND;TZID=Asia/Tokyo:20261017T003000')
   })
 
   it('場所とメモを書く。無ければ行を作らない', () => {
-    const withPlace = buildIcs([ev({ id: 'p', station: 'ひたち野うしく', memo: '持ち物あり' })], { now: NOW })
+    const withPlace = buildIcs([ev({ id: 'p', station: 'ひたち野うしく', memo: '持ち物あり' })], { now: NOW, timeZone: 'Asia/Tokyo' })
     expect(withPlace).toContain('LOCATION:ひたち野うしく')
     expect(withPlace).toContain('DESCRIPTION:持ち物あり')
-    expect(buildIcs([ev({ id: 'p' })], { now: NOW })).not.toContain('LOCATION:')
+    expect(buildIcs([ev({ id: 'p' })], { now: NOW, timeZone: 'Asia/Tokyo' })).not.toContain('LOCATION:')
   })
 
   it('記号は壊れないように書き換える', () => {

@@ -9,22 +9,90 @@
  * 授業は出さない。時間割から毎週組み立てているもので、
  * 向こうのカレンダーに毎週ぶん並べても持て余すため。
  *
- * 時刻は UTC（末尾 Z）で書く。読み込む側の時間帯の設定に左右されないようにするため。
+ * **時刻は入力したとおりの時刻で書き、時間帯（TZID）を添える。**
+ * はじめは UTC（末尾 Z）で書いていたが、読み込んだ先で「その土地の時刻」として扱われ、
+ * 16:00 の予定が 7:00 になった（2026-10-16 に実際に起きた）。
+ * 入力どおりの時刻で書いておけば、時間帯を見てくれる相手なら正しい時刻に、
+ * 見てくれない相手でも**書いたとおりの時刻**になる。どちらに転んでも 9 時間ずれない。
+ *
  * `UID` は予定の id から作るので、**同じ予定を読み込み直しても増えない**（上書きされる）。
+ *
+ * **色について。**予定ごとの色は `COLOR`（RFC 7986）で書いてあるが、
+ * Google カレンダーの読み込みはこれを見ない（取り込んだ先のカレンダーの色になる）。
+ * Google で色を分けたいときは `only` で**種類ごとに分けて書き出し**、
+ * 向こうで種類ごとのカレンダーを作って、それぞれに読み込ませる。カレンダーの色は向こうで選べる。
  */
 
-import type { EventItem, Place, Trip } from '../types'
+import type { EventCategory, EventItem, Place, Trip } from '../types'
 import { CATEGORY_LABELS } from '../types'
 import { addDays, at } from './date'
 
 const DOMAIN = 'banz-hub.github.io'
 
+/**
+ * 種類ごとの色。読める相手（Apple カレンダーなど）だけが使う。
+ * 名前は CSS の色名で書く決まり（RFC 7986）。アプリの色に近いものを選んである。
+ */
+const COLORS: Record<EventCategory, string> = {
+  baito: 'deepskyblue',
+  jobhunt: 'orange',
+  exam: 'tomato',
+  private: 'hotpink',
+  trip: 'hotpink',
+  other: 'gray',
+}
+
+const p2 = (n: number) => String(n).padStart(2, '0')
+
+/** 書き出した時刻（DTSTAMP）だけは UTC でよい。予定の時刻ではないため */
 function utc(d: Date): string {
-  const p2 = (n: number) => String(n).padStart(2, '0')
   return (
     `${d.getUTCFullYear()}${p2(d.getUTCMonth() + 1)}${p2(d.getUTCDate())}` +
     `T${p2(d.getUTCHours())}${p2(d.getUTCMinutes())}${p2(d.getUTCSeconds())}Z`
   )
+}
+
+/** 入力したとおりの時刻（20261016T160000）。末尾に Z は付けない */
+function local(d: Date): string {
+  return (
+    `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}` +
+    `T${p2(d.getHours())}${p2(d.getMinutes())}00`
+  )
+}
+
+/** この端末の時間帯。分からない端末では日本時間とみなす */
+export function deviceTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Tokyo'
+  } catch {
+    return 'Asia/Tokyo'
+  }
+}
+
+/** その日の UTC からのずれ。「+0900」の形 */
+export function utcOffset(d: Date): string {
+  // getTimezoneOffset は「UTC - 現地」の分数。符号が逆なので反転させる
+  const mins = -d.getTimezoneOffset()
+  const sign = mins < 0 ? '-' : '+'
+  const abs = Math.abs(mins)
+  return `${sign}${p2(Math.floor(abs / 60))}${p2(abs % 60)}`
+}
+
+/**
+ * 時間帯の説明。これが無いと、TZID を見る相手が時刻を決められない。
+ * 日本は夏時間が無いので 1 つ書けば足りる。
+ */
+function timeZoneBlock(tzid: string, offset: string): string[] {
+  return [
+    'BEGIN:VTIMEZONE',
+    `TZID:${tzid}`,
+    'BEGIN:STANDARD',
+    'DTSTART:19700101T000000',
+    `TZOFFSETFROM:${offset}`,
+    `TZOFFSETTO:${offset}`,
+    'END:STANDARD',
+    'END:VTIMEZONE',
+  ]
 }
 
 /** .ics の中で改行や記号が壊れないようにする */
@@ -74,8 +142,15 @@ export interface IcsOptions {
   trips?: Trip[]
   /** この日以降の予定だけ出す (YYYY-MM-DD)。省略するとすべて */
   from?: string
+  /**
+   * この種類だけ出す。Google カレンダーで色を分けたいときに使う
+   * （種類ごとのカレンダーに分けて読み込ませると、向こうで色が付く）。
+   */
+  only?: EventCategory
   /** 書き出した時刻。テストで固定するために渡せる */
   now?: Date
+  /** 時間帯。省略すると端末の時間帯（日本なら Asia/Tokyo） */
+  timeZone?: string
 }
 
 /** 予定の題名。題名が空のものは種類の名前にする（バイトなど） */
@@ -84,10 +159,15 @@ export function titleOf(e: EventItem): string {
 }
 
 /** 出す対象の予定。時刻の入っていないものは飛ばす（カレンダーに置けないため） */
-export function eventsToExport(events: EventItem[], from?: string): EventItem[] {
+export function eventsToExport(
+  events: EventItem[],
+  from?: string,
+  only?: EventCategory,
+): EventItem[] {
   return events
     .filter((e) => typeof e.start === 'string' && typeof e.end === 'string' && e.start && e.end)
     .filter((e) => !from || e.date >= from)
+    .filter((e) => !only || e.category === only)
     .sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start))
 }
 
@@ -101,15 +181,20 @@ export function tripsToExport(trips: Trip[], from?: string): Trip[] {
 
 export function buildIcs(events: EventItem[], options: IcsOptions = {}): string {
   const stamp = utc(options.now ?? new Date())
+  const tzid = options.timeZone ?? deviceTimeZone()
+  const offset = utcOffset(options.now ?? new Date())
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
     `PRODID:-//yoteicho//${DOMAIN}//JP`,
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
+    // 読み込む側がカレンダー全体の時間帯を見ることがあるので、ここにも書く
+    `X-WR-TIMEZONE:${tzid}`,
+    ...timeZoneBlock(tzid, offset),
   ]
 
-  for (const e of eventsToExport(events, options.from)) {
+  for (const e of eventsToExport(events, options.from, options.only)) {
     const place = options.places?.find((p) => p.id === e.placeId)
     const where = place ? `${place.name}（${place.station}）` : (e.station ?? '')
     const end = at(e.date, e.end)
@@ -121,17 +206,21 @@ export function buildIcs(events: EventItem[], options: IcsOptions = {}): string 
       'BEGIN:VEVENT',
       `UID:yotei-${e.id}@${DOMAIN}`,
       `DTSTAMP:${stamp}`,
-      `DTSTART:${utc(start)}`,
-      `DTEND:${utc(end)}`,
+      `DTSTART;TZID=${tzid}:${local(start)}`,
+      `DTEND;TZID=${tzid}:${local(end)}`,
       `SUMMARY:${esc(titleOf(e))}`,
       `CATEGORIES:${esc(CATEGORY_LABELS[e.category] ?? 'その他')}`,
+      // 読める相手だけが使う。Google カレンダーは見ない
+      `COLOR:${COLORS[e.category] ?? COLORS.other}`,
     )
     if (where) lines.push(`LOCATION:${esc(where)}`)
     if (e.memo) lines.push(`DESCRIPTION:${esc(e.memo)}`)
     lines.push('END:VEVENT')
   }
 
-  for (const t of tripsToExport(options.trips ?? [], options.from)) {
+  // 旅行は「旅行」を出すときだけ（種類を絞っているときに混ざらないように）
+  const trips = !options.only || options.only === 'trip' ? (options.trips ?? []) : []
+  for (const t of tripsToExport(trips, options.from)) {
     lines.push(
       'BEGIN:VEVENT',
       `UID:yotei-trip-${t.id}@${DOMAIN}`,
@@ -141,6 +230,7 @@ export function buildIcs(events: EventItem[], options: IcsOptions = {}): string 
       `DTEND;VALUE=DATE:${dateOnly(addDays(t.endDate, 1))}`,
       `SUMMARY:${esc(t.name)}`,
       'CATEGORIES:旅行',
+      `COLOR:${COLORS.trip}`,
       // 終日の旅行で予定表が「予定あり」で埋まらないようにする
       'TRANSP:TRANSPARENT',
     )
@@ -152,8 +242,8 @@ export function buildIcs(events: EventItem[], options: IcsOptions = {}): string 
   return lines.map(fold).join('\r\n') + '\r\n'
 }
 
-export function icsFilename(from?: string): string {
-  return `yoteicho-${from ? `from-${from}` : 'all'}.ics`
+export function icsFilename(from?: string, only?: EventCategory): string {
+  return `yoteicho-${only ?? 'all-kinds'}-${from ? `from-${from}` : 'all'}.ics`
 }
 
 /** 書き出したファイルを端末に保存する */

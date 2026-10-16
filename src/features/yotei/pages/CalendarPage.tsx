@@ -18,7 +18,7 @@ import { labelOf, toneOf } from '../lib/tone'
 import { buildIcs, downloadIcs, eventsToExport, icsFilename, tripsToExport } from '../lib/ics'
 import { hourRange, layoutDay, weekDays, weekStartOf } from '../lib/week'
 import { useApp } from '../state/AppContext'
-import type { EventItem } from '../types'
+import { CATEGORY_LABELS, type EventCategory, type EventItem } from '../types'
 
 const SUB = [
   { to: '/yotei/calendar', label: 'カレンダー' },
@@ -90,19 +90,18 @@ export default function CalendarPage() {
   }
 
   /** 書き出す件数（単発の予定＋旅行）。ボタンの中にも出すので先に数える */
-  const countFor = (from?: string) =>
-    eventsToExport(data.events, from).length + tripsToExport(data.trips, from).length
+  const countFor = (from?: string, only?: EventCategory) =>
+    eventsToExport(data.events, from, only).length +
+    (!only || only === 'trip' ? tripsToExport(data.trips, from).length : 0)
 
-  const exportIcs = (from?: string) => {
-    if (countFor(from) === 0) {
+  const exportIcs = (from?: string, only?: EventCategory) => {
+    if (countFor(from, only) === 0) {
       setExported('書き出す予定がありませんでした')
       return
     }
-    downloadIcs(
-      icsFilename(from),
-      buildIcs(data.events, { places: data.places, trips: data.trips, from }),
-    )
-    setExported(`${countFor(from)}件を書き出しました（${icsFilename(from)}）`)
+    const name = icsFilename(from, only)
+    downloadIcs(name, buildIcs(data.events, { places: data.places, trips: data.trips, from, only }))
+    setExported(`${countFor(from, only)}件を書き出しました（${name}）`)
   }
 
   const items = useMemo(
@@ -254,6 +253,30 @@ export default function CalendarPage() {
             すべて（{countFor()}件）
           </button>
         </div>
+        <h3 className="section">種類ごとに分けて出す</h3>
+        <p className="hint">
+          <strong>Google カレンダーは、予定ごとの色を読み込みません。</strong>取り込んだ先のカレンダーの色になります。
+          色を分けたいときは、Google で種類ごとのカレンダー（バイト・就活…）を作って色を決め、
+          ここで種類ごとに書き出したファイルを、それぞれのカレンダーに読み込ませてください。
+          これなら、よてい帳と同じ分け方のまま向こうでも色が付きます。
+        </p>
+        <div className="row tight">
+          {(Object.entries(CATEGORY_LABELS) as Array<[EventCategory, string]>).map(([key, label]) => {
+            const n = countFor(today, key)
+            return (
+              <button
+                key={key}
+                type="button"
+                className="btn sm"
+                disabled={n === 0}
+                onClick={() => exportIcs(today, key)}
+              >
+                <span className={`tag t-${toneOf('event', key)}`}>{label}</span> {n}件
+              </button>
+            )
+          })}
+        </div>
+        <p className="dim">種類ごとのぶんは「今日から先」だけを出します。</p>
         {exported && <p className="dim">{exported}</p>}
       </section>
 
