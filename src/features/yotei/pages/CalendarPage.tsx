@@ -15,6 +15,7 @@ import {
 } from '../lib/date'
 import { timelineOn, type TimelineItem } from '../lib/schedule'
 import { labelOf, toneOf } from '../lib/tone'
+import { buildIcs, downloadIcs, eventsToExport, icsFilename } from '../lib/ics'
 import { hourRange, layoutDay, mondayOf, weekDays } from '../lib/week'
 import { useApp } from '../state/AppContext'
 import type { EventItem } from '../types'
@@ -28,6 +29,19 @@ const SUB = [
 /** 1 時間の高さ (px)。30 分の予定でも題名が 1 行は入る高さ */
 const HOUR_PX = 44
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * 授業を隠しているか。**見え方の好みなので端末に覚えさせる**（データではないので IndexedDB には入れない）。
+ * 読めない端末（プライベートブラウズなど）でも動くように、失敗しても黙って既定に戻す。
+ */
+const HIDE_KEY = 'yotei:hideCourses'
+function readHideCourses(): boolean {
+  try {
+    return localStorage.getItem(HIDE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
 
 type View = 'week' | 'month'
 type Data = Parameters<typeof timelineOn>[1]
@@ -62,8 +76,33 @@ export default function CalendarPage() {
   const [ym, setYm] = useState(() => monthKey(initial))
   const [monday, setMonday] = useState(() => mondayOf(initial))
   const [editing, setEditing] = useState<EventItem | null>(null)
+  const [hideCourses, setHideCourses] = useState(readHideCourses)
+  const [exported, setExported] = useState('')
 
-  const items = useMemo(() => timelineOn(selected, data), [selected, data])
+  const toggleCourses = () => {
+    const next = !hideCourses
+    setHideCourses(next)
+    try {
+      localStorage.setItem(HIDE_KEY, next ? '1' : '0')
+    } catch {
+      // 覚えられない端末でも、この画面を開いている間は効く
+    }
+  }
+
+  const exportIcs = (from?: string) => {
+    const list = eventsToExport(data.events, from)
+    if (list.length === 0) {
+      setExported('書き出す予定がありませんでした')
+      return
+    }
+    downloadIcs(icsFilename(from), buildIcs(data.events, { places: data.places, from }))
+    setExported(`${list.length}件を書き出しました（${icsFilename(from)}）`)
+  }
+
+  const items = useMemo(
+    () => timelineOn(selected, data).filter((i) => !hideCourses || i.kind !== 'course'),
+    [selected, data, hideCourses],
+  )
 
   // 選んだ日に、週と月の表示も合わせる。切り替えたときに別の週が出ないように
   const select = (d: string) => {
@@ -97,6 +136,19 @@ export default function CalendarPage() {
         </button>
       </div>
 
+      <div className="row tight cal-tools">
+        <button
+          type="button"
+          className={`btn sm${hideCourses ? ' ghost' : ''}`}
+          aria-pressed={!hideCourses}
+          onClick={toggleCourses}
+        >
+          <span className={`tag t-class${hideCourses ? ' is-off' : ''}`}>授業</span>{' '}
+          {hideCourses ? '隠している' : '表示中'}
+        </button>
+        <span className="dim">押すと大学の授業だけ出し入れできます</span>
+      </div>
+
       {view === 'week' ? (
         <WeekView
           monday={monday}
@@ -107,6 +159,7 @@ export default function CalendarPage() {
           onToday={() => select(today)}
           onSelect={select}
           onEdit={(e) => setEditing(e)}
+          hideCourses={hideCourses}
         />
       ) : (
         <MonthView
@@ -116,6 +169,7 @@ export default function CalendarPage() {
           data={data}
           onMonth={(n) => setYm(monthKey(addMonths(`${ym}-01`, n)))}
           onSelect={select}
+          hideCourses={hideCourses}
         />
       )}
 
@@ -177,6 +231,26 @@ export default function CalendarPage() {
         </ul>
       )}
 
+      <section className="bucket">
+        <h2 className="section">Googleカレンダーへ出す</h2>
+        <p className="hint">
+          <strong>授業以外の予定</strong>（バイト・就活・試験・私用・旅行）を .ics で書き出します。
+          授業は時間割から毎週組み立てているので出しません。
+          パソコンなら Google カレンダー →「設定」→「インポート」、
+          iPhone なら書き出したファイルを開いて読み込みます。
+          同じ予定を入れ直しても<strong>二重になりません</strong>（予定ごとの印で上書きされます）。
+        </p>
+        <div className="row">
+          <button type="button" className="btn grow" onClick={() => exportIcs(today)}>
+            今日から先（{eventsToExport(data.events, today).length}件）
+          </button>
+          <button type="button" className="btn ghost grow" onClick={() => exportIcs()}>
+            すべて（{eventsToExport(data.events).length}件）
+          </button>
+        </div>
+        {exported && <p className="dim">{exported}</p>}
+      </section>
+
       <Sheet
         open={editing !== null}
         title="予定"
@@ -213,6 +287,7 @@ function WeekView({
   onToday,
   onSelect,
   onEdit,
+  hideCourses,
 }: {
   monday: string
   selected: string
@@ -222,9 +297,13 @@ function WeekView({
   onToday: () => void
   onSelect: (d: string) => void
   onEdit: (e: EventItem) => void
+  hideCourses: boolean
 }) {
   const days = useMemo(() => weekDays(monday), [monday])
-  const perDay = useMemo(() => days.map((d) => timelineOn(d, data)), [days, data])
+  const perDay = useMemo(
+    () => days.map((d) => timelineOn(d, data).filter((i) => !hideCourses || i.kind !== 'course')),
+    [days, data, hideCourses],
+  )
   const [from, to] = hourRange(perDay.flat())
   const hours = Array.from({ length: to - from }, (_, i) => from + i)
   const height = (to - from) * HOUR_PX
@@ -365,6 +444,7 @@ function MonthView({
   data,
   onMonth,
   onSelect,
+  hideCourses,
 }: {
   ym: string
   selected: string
@@ -372,6 +452,7 @@ function MonthView({
   data: Data
   onMonth: (n: number) => void
   onSelect: (d: string) => void
+  hideCourses: boolean
 }) {
   const grid = useMemo(() => monthGrid(ym), [ym])
   const tones = useMemo(() => {
@@ -379,11 +460,13 @@ function MonthView({
     for (const cell of grid) {
       map.set(
         cell.dateKey,
-        timelineOn(cell.dateKey, data).map((it) => toneOf(it.kind, it.category)),
+        timelineOn(cell.dateKey, data)
+          .filter((it) => !hideCourses || it.kind !== 'course')
+          .map((it) => toneOf(it.kind, it.category)),
       )
     }
     return map
-  }, [grid, data])
+  }, [grid, data, hideCourses])
 
   return (
     <>

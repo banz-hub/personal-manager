@@ -1766,3 +1766,12 @@ table.compare td:first-child {
   color: var(--danger);
   border-color: var(--danger);
 }
+
+/* 予定の画面の「授業を出し入れする」切り替え */
+.cal-tools {
+  margin-top: -6px;
+}
+.cal-tools .tag.is-off {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
