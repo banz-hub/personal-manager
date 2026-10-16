@@ -244,6 +244,7 @@ export default function CalendarPage() {
           パソコンなら Google カレンダー →「設定」→「インポート」、
           iPhone なら書き出したファイルを開いて読み込みます。
           同じ予定を入れ直しても<strong>二重になりません</strong>（予定ごとの印で上書きされます）。
+          通知（1週間前・3日前・1日前・30分前）も一緒に入ります。
         </p>
         <div className="row">
           <button type="button" className="btn grow" onClick={() => exportIcs(today)}>

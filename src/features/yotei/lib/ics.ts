@@ -17,6 +17,10 @@
  *
  * `UID` は予定の id から作るので、**同じ予定を読み込み直しても増えない**（上書きされる）。
  *
+ * **通知について。**予定ごとに 1 週間前・3 日前・1 日前・30 分前の通知を入れてある。
+ * 読み込んだ先でそのまま通知として入る（取り込まない相手もいる）。
+ * 旅行は終日なので 30 分前は入れない（0 時 30 分前 = 前日の 23:30 に鳴っても仕方がない）。
+ *
  * **色について。**予定ごとの色は `COLOR`（RFC 7986）で書いてあるが、
  * Google カレンダーの読み込みはこれを見ない（取り込んだ先のカレンダーの色になる）。
  * Google で色を分けたいときは `only` で**種類ごとに分けて書き出し**、
@@ -131,6 +135,28 @@ export function fold(line: string): string {
   return out.map((l, i) => (i === 0 ? l : ` ${l}`)).join('\r\n')
 }
 
+/**
+ * いつ知らせるか。ISO 8601 の期間で書く決まり（-P1W = 1 週間前）。
+ * 就活の説明会は申し込みや準備が要るので、早めにも鳴らしている。
+ */
+const ALARMS = [
+  { trigger: '-P1W', label: '1週間前' },
+  { trigger: '-P3D', label: '3日前' },
+  { trigger: '-P1D', label: '1日前' },
+  { trigger: '-PT30M', label: '30分前' },
+]
+
+/** 終日の予定には 30 分前を入れない（前日の 23:30 に鳴るだけなので） */
+function alarmLines(title: string, allDay = false): string[] {
+  return ALARMS.filter((a) => !allDay || a.trigger !== '-PT30M').flatMap((a) => [
+    'BEGIN:VALARM',
+    `TRIGGER:${a.trigger}`,
+    'ACTION:DISPLAY',
+    `DESCRIPTION:${esc(`${a.label} - ${title}`)}`,
+    'END:VALARM',
+  ])
+}
+
 /** 終日の予定に書く日付。20261019 の形 */
 function dateOnly(key: string): string {
   return key.replace(/-/g, '')
@@ -215,7 +241,7 @@ export function buildIcs(events: EventItem[], options: IcsOptions = {}): string 
     )
     if (where) lines.push(`LOCATION:${esc(where)}`)
     if (e.memo) lines.push(`DESCRIPTION:${esc(e.memo)}`)
-    lines.push('END:VEVENT')
+    lines.push(...alarmLines(titleOf(e)), 'END:VEVENT')
   }
 
   // 旅行は「旅行」を出すときだけ（種類を絞っているときに混ざらないように）
@@ -235,7 +261,7 @@ export function buildIcs(events: EventItem[], options: IcsOptions = {}): string 
       'TRANSP:TRANSPARENT',
     )
     if (t.memo) lines.push(`DESCRIPTION:${esc(t.memo)}`)
-    lines.push('END:VEVENT')
+    lines.push(...alarmLines(t.name, true), 'END:VEVENT')
   }
 
   lines.push('END:VCALENDAR')

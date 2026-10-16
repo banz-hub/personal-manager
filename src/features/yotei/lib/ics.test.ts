@@ -110,3 +110,27 @@ describe('旅行', () => {
     expect(tripsToExport([trip], '2026-10-23')).toEqual([])
   })
 })
+
+describe('通知', () => {
+  it('1週間前・3日前・1日前・30分前を入れる', () => {
+    const text = buildIcs([ev({ id: 'e1', title: '説明会', category: 'jobhunt' })], {
+      now: NOW,
+      timeZone: 'Asia/Tokyo',
+    })
+    expect(text).toContain('TRIGGER:-P1W')
+    expect(text).toContain('TRIGGER:-P3D')
+    expect(text).toContain('TRIGGER:-P1D')
+    expect(text).toContain('TRIGGER:-PT30M')
+    expect(text.match(/BEGIN:VALARM/g)).toHaveLength(4)
+    expect(text).toContain('DESCRIPTION:1週間前 - 説明会')
+  })
+
+  it('旅行（終日）には30分前を入れない', () => {
+    const text = buildIcs([], {
+      trips: [{ id: 't1', name: '沖縄', startDate: '2026-10-20', endDate: '2026-10-22' }],
+      now: NOW,
+    })
+    expect(text.match(/BEGIN:VALARM/g)).toHaveLength(3)
+    expect(text).not.toContain('TRIGGER:-PT30M')
+  })
+})
