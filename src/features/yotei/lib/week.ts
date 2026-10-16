@@ -1,21 +1,21 @@
 /**
  * 週のカレンダーの並べ方。画面から切り離してあるのはテストのため。
  *
- *  - 週は**月曜はじまり**。ふりかえりの週と区切りをそろえる
+ *  - 週は**日曜はじまり**。月のカレンダーと並びをそろえる（本人の指定、2026-10-16）
+ *    ふりかえりの週だけは月曜はじまりのまま（週の集計の区切り）
  *  - 縦に並べる時間の幅は、その週の予定が全部入る幅にする（最低でも 8 時〜 22 時）
  *  - 時刻が重なった予定は横に並べる。重ねて描くと下の予定が読めなくなる
  */
 
 import { addDays, parseDate } from './date'
 
-/** その日を含む週の月曜 */
-export function mondayOf(date: string): string {
-  const offset = (parseDate(date).getDay() + 6) % 7
-  return addDays(date, -offset)
+/** その日を含む週の日曜 */
+export function weekStartOf(date: string): string {
+  return addDays(date, -parseDate(date).getDay())
 }
 
-export function weekDays(monday: string): string[] {
-  return Array.from({ length: 7 }, (_, i) => addDays(monday, i))
+export function weekDays(weekStart: string): string[] {
+  return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 }
 
 export interface Span {

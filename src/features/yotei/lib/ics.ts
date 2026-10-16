@@ -5,16 +5,17 @@
  * API を呼ぶのに要る鍵を隠す場所がない（端末に置けば誰でも見られる）。
  * ファイルに書き出して、本人が読み込む形にすれば鍵が要らない。
  *
- * 出すのは**単発の予定だけ。**授業は時間割から毎週組み立てているもので、
- * 向こうのカレンダーに毎週ぶん並べても持て余すため出さない。
+ * 出すのは**単発の予定と旅行。**旅行は時刻を持たないので、終日の予定として日をまたいで置く。
+ * 授業は出さない。時間割から毎週組み立てているもので、
+ * 向こうのカレンダーに毎週ぶん並べても持て余すため。
  *
  * 時刻は UTC（末尾 Z）で書く。読み込む側の時間帯の設定に左右されないようにするため。
  * `UID` は予定の id から作るので、**同じ予定を読み込み直しても増えない**（上書きされる）。
  */
 
-import type { EventItem, Place } from '../types'
+import type { EventItem, Place, Trip } from '../types'
 import { CATEGORY_LABELS } from '../types'
-import { at } from './date'
+import { addDays, at } from './date'
 
 const DOMAIN = 'banz-hub.github.io'
 
@@ -62,8 +63,15 @@ export function fold(line: string): string {
   return out.map((l, i) => (i === 0 ? l : ` ${l}`)).join('\r\n')
 }
 
+/** 終日の予定に書く日付。20261019 の形 */
+function dateOnly(key: string): string {
+  return key.replace(/-/g, '')
+}
+
 export interface IcsOptions {
   places?: Place[]
+  /** 旅行。終日の予定として出す */
+  trips?: Trip[]
   /** この日以降の予定だけ出す (YYYY-MM-DD)。省略するとすべて */
   from?: string
   /** 書き出した時刻。テストで固定するために渡せる */
@@ -81,6 +89,14 @@ export function eventsToExport(events: EventItem[], from?: string): EventItem[] 
     .filter((e) => typeof e.start === 'string' && typeof e.end === 'string' && e.start && e.end)
     .filter((e) => !from || e.date >= from)
     .sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start))
+}
+
+/** 出す対象の旅行。終わる日が指定より前のものは出さない */
+export function tripsToExport(trips: Trip[], from?: string): Trip[] {
+  return trips
+    .filter((t) => t.startDate && t.endDate)
+    .filter((t) => !from || t.endDate >= from)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))
 }
 
 export function buildIcs(events: EventItem[], options: IcsOptions = {}): string {
@@ -112,6 +128,23 @@ export function buildIcs(events: EventItem[], options: IcsOptions = {}): string 
     )
     if (where) lines.push(`LOCATION:${esc(where)}`)
     if (e.memo) lines.push(`DESCRIPTION:${esc(e.memo)}`)
+    lines.push('END:VEVENT')
+  }
+
+  for (const t of tripsToExport(options.trips ?? [], options.from)) {
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:yotei-trip-${t.id}@${DOMAIN}`,
+      `DTSTAMP:${stamp}`,
+      // 終日の予定は、終わりの日の「次の日」を書く決まり（その日を含まない）
+      `DTSTART;VALUE=DATE:${dateOnly(t.startDate)}`,
+      `DTEND;VALUE=DATE:${dateOnly(addDays(t.endDate, 1))}`,
+      `SUMMARY:${esc(t.name)}`,
+      'CATEGORIES:旅行',
+      // 終日の旅行で予定表が「予定あり」で埋まらないようにする
+      'TRANSP:TRANSPARENT',
+    )
+    if (t.memo) lines.push(`DESCRIPTION:${esc(t.memo)}`)
     lines.push('END:VEVENT')
   }
 

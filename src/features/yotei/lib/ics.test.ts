@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EventItem } from '../types'
-import { buildIcs, esc, eventsToExport, fold, titleOf } from './ics'
+import { buildIcs, esc, eventsToExport, fold, titleOf, tripsToExport } from './ics'
 
 const ev = (patch: Partial<EventItem> & { id: string }): EventItem => ({
   title: '',
@@ -73,5 +73,26 @@ describe('.ics を組み立てる', () => {
     expect(folded.slice(1).every((l) => l.startsWith(' '))).toBe(true)
     // 折り返しても中身は変わらない
     expect(folded.map((l, i) => (i === 0 ? l : l.slice(1))).join('')).toBe(line)
+  })
+})
+
+describe('旅行', () => {
+  const trip = { id: 't1', name: '沖縄（サンプル）', startDate: '2026-10-20', endDate: '2026-10-22' }
+
+  it('終日の予定として、終わりの日の次の日まで書く', () => {
+    const text = buildIcs([], { trips: [trip], now: NOW })
+    expect(text).toContain('UID:yotei-trip-t1@banz-hub.github.io')
+    expect(text).toContain('DTSTART;VALUE=DATE:20261020')
+    // 終日の予定は終わりの日を含まないので、22日までの旅行は23日と書く
+    expect(text).toContain('DTEND;VALUE=DATE:20261023')
+    expect(text).toContain('SUMMARY:沖縄（サンプル）')
+    expect(text).toContain('CATEGORIES:旅行')
+  })
+
+  it('終わった旅行は「今日から先」に出さない', () => {
+    expect(tripsToExport([trip], '2026-10-16').map((t) => t.id)).toEqual(['t1'])
+    // 旅行の最中（開始は過ぎたが終わっていない）は出す
+    expect(tripsToExport([trip], '2026-10-21').map((t) => t.id)).toEqual(['t1'])
+    expect(tripsToExport([trip], '2026-10-23')).toEqual([])
   })
 })

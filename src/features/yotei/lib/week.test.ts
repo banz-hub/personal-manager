@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { hourRange, layoutDay, mondayOf, weekDays } from './week'
+import { hourRange, layoutDay, weekDays, weekStartOf } from './week'
 
 const s = (startMin: number, endMin: number, id = `${startMin}`) => ({ id, startMin, endMin })
 
 describe('週の区切り', () => {
-  it('月曜はじまり。日曜は前の週の終わり', () => {
-    expect(mondayOf('2026-09-18')).toBe('2026-09-14') // 金
-    expect(mondayOf('2026-09-14')).toBe('2026-09-14') // 月
-    expect(mondayOf('2026-09-20')).toBe('2026-09-14') // 日
-    expect(weekDays('2026-09-14')).toHaveLength(7)
-    expect(weekDays('2026-09-14')[6]).toBe('2026-09-20')
+  it('日曜はじまり。土曜が週の終わり', () => {
+    expect(weekStartOf('2026-09-18')).toBe('2026-09-13') // 金
+    expect(weekStartOf('2026-09-13')).toBe('2026-09-13') // 日
+    expect(weekStartOf('2026-09-19')).toBe('2026-09-13') // 土
+    expect(weekStartOf('2026-09-20')).toBe('2026-09-20') // 次の日曜
+    expect(weekDays('2026-09-13')).toHaveLength(7)
+    expect(weekDays('2026-09-13')[6]).toBe('2026-09-19')
   })
 })
 

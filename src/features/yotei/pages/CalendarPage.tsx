@@ -15,8 +15,8 @@ import {
 } from '../lib/date'
 import { timelineOn, type TimelineItem } from '../lib/schedule'
 import { labelOf, toneOf } from '../lib/tone'
-import { buildIcs, downloadIcs, eventsToExport, icsFilename } from '../lib/ics'
-import { hourRange, layoutDay, mondayOf, weekDays } from '../lib/week'
+import { buildIcs, downloadIcs, eventsToExport, icsFilename, tripsToExport } from '../lib/ics'
+import { hourRange, layoutDay, weekDays, weekStartOf } from '../lib/week'
 import { useApp } from '../state/AppContext'
 import type { EventItem } from '../types'
 
@@ -74,7 +74,7 @@ export default function CalendarPage() {
   const [view, setView] = useState<View>('week')
   const [selected, setSelected] = useState(initial)
   const [ym, setYm] = useState(() => monthKey(initial))
-  const [monday, setMonday] = useState(() => mondayOf(initial))
+  const [weekStart, setWeekStart] = useState(() => weekStartOf(initial))
   const [editing, setEditing] = useState<EventItem | null>(null)
   const [hideCourses, setHideCourses] = useState(readHideCourses)
   const [exported, setExported] = useState('')
@@ -89,14 +89,20 @@ export default function CalendarPage() {
     }
   }
 
+  /** 書き出す件数（単発の予定＋旅行）。ボタンの中にも出すので先に数える */
+  const countFor = (from?: string) =>
+    eventsToExport(data.events, from).length + tripsToExport(data.trips, from).length
+
   const exportIcs = (from?: string) => {
-    const list = eventsToExport(data.events, from)
-    if (list.length === 0) {
+    if (countFor(from) === 0) {
       setExported('書き出す予定がありませんでした')
       return
     }
-    downloadIcs(icsFilename(from), buildIcs(data.events, { places: data.places, from }))
-    setExported(`${list.length}件を書き出しました（${icsFilename(from)}）`)
+    downloadIcs(
+      icsFilename(from),
+      buildIcs(data.events, { places: data.places, trips: data.trips, from }),
+    )
+    setExported(`${countFor(from)}件を書き出しました（${icsFilename(from)}）`)
   }
 
   const items = useMemo(
@@ -108,7 +114,7 @@ export default function CalendarPage() {
   const select = (d: string) => {
     setSelected(d)
     setYm(monthKey(d))
-    setMonday(mondayOf(d))
+    setWeekStart(weekStartOf(d))
   }
 
   return (
@@ -151,11 +157,11 @@ export default function CalendarPage() {
 
       {view === 'week' ? (
         <WeekView
-          monday={monday}
+          weekStart={weekStart}
           selected={selected}
           today={today}
           data={data}
-          onWeek={(n) => setMonday(addDays(monday, n * 7))}
+          onWeek={(n) => setWeekStart(addDays(weekStart, n * 7))}
           onToday={() => select(today)}
           onSelect={select}
           onEdit={(e) => setEditing(e)}
@@ -234,7 +240,7 @@ export default function CalendarPage() {
       <section className="bucket">
         <h2 className="section">Googleカレンダーへ出す</h2>
         <p className="hint">
-          <strong>授業以外の予定</strong>（バイト・就活・試験・私用・旅行）を .ics で書き出します。
+          <strong>授業以外の予定</strong>（バイト・就活・試験・私用）と<strong>旅行</strong>を .ics で書き出します。旅行は終日の予定として日をまたいで入ります。
           授業は時間割から毎週組み立てているので出しません。
           パソコンなら Google カレンダー →「設定」→「インポート」、
           iPhone なら書き出したファイルを開いて読み込みます。
@@ -242,10 +248,10 @@ export default function CalendarPage() {
         </p>
         <div className="row">
           <button type="button" className="btn grow" onClick={() => exportIcs(today)}>
-            今日から先（{eventsToExport(data.events, today).length}件）
+            今日から先（{countFor(today)}件）
           </button>
           <button type="button" className="btn ghost grow" onClick={() => exportIcs()}>
-            すべて（{eventsToExport(data.events).length}件）
+            すべて（{countFor()}件）
           </button>
         </div>
         {exported && <p className="dim">{exported}</p>}
@@ -279,7 +285,7 @@ export default function CalendarPage() {
  * 予定は時刻の位置に置き、種類の色で塗る。押すとその日を下に開く（予定なら編集）。
  */
 function WeekView({
-  monday,
+  weekStart,
   selected,
   today,
   data,
@@ -289,7 +295,7 @@ function WeekView({
   onEdit,
   hideCourses,
 }: {
-  monday: string
+  weekStart: string
   selected: string
   today: string
   data: Data
@@ -299,7 +305,7 @@ function WeekView({
   onEdit: (e: EventItem) => void
   hideCourses: boolean
 }) {
-  const days = useMemo(() => weekDays(monday), [monday])
+  const days = useMemo(() => weekDays(weekStart), [weekStart])
   const perDay = useMemo(
     () => days.map((d) => timelineOn(d, data).filter((i) => !hideCourses || i.kind !== 'course')),
     [days, data, hideCourses],
@@ -312,7 +318,7 @@ function WeekView({
     const n = new Date()
     return n.getHours() * 60 + n.getMinutes()
   })
-  const start = parseDate(monday)
+  const start = parseDate(weekStart)
   const end = parseDate(days[6])
 
   return (
