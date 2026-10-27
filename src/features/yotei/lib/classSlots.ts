@@ -80,3 +80,34 @@ export const DEFAULT_CLASS_SLOTS: ClassSlot[] = [
   { id: 'slot-c', label: 'C', start: '18:05', end: '19:35' },
   { id: 'slot-d', label: 'D', start: '19:40', end: '21:10' },
 ]
+
+/**
+ * 選んだコマの呼び名を並べる。
+ * 1 文字ずつの呼び名（A/B/C…）なら「BCD」とつなげ、長い呼び名なら「朝・夜」と点で区切る。
+ */
+export function slotLabels(slots: ClassSlot[]): string {
+  const labels = slots.map((s) => s.label.trim()).filter(Boolean)
+  if (labels.length === 0) return ''
+  return labels.every((l) => [...l].length === 1) ? labels.join('') : labels.join('・')
+}
+
+/**
+ * コマから予定の名前を作る（「バイト BCD」）。
+ *
+ * **何コマ目に出るかを、予定の名前だけで分かるようにするため。**
+ * カレンダーでは名前しか見えないので、開かないと分からないと意味がない。
+ * コマを 1 つも選んでいなければ空（種類の名前「バイト」がそのまま出る）。
+ */
+export function shiftTitle(job: Job, slotIds: string[]): string {
+  const picked = selectionFor(job, slotIds)
+  const labels = picked ? slotLabels(picked.slots) : ''
+  return labels ? `バイト ${labels}` : ''
+}
+
+/**
+ * その名前を、こちらが自動で付けたものとみなしてよいか。
+ * 自分で書いた名前（「明光 テスト対策」など）は書き換えない。
+ */
+export function isAutoShiftTitle(title: string): boolean {
+  return title.trim() === '' || /^バイト(\s|$)/.test(title.trim())
+}

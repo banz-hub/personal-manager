@@ -4,7 +4,7 @@ import { useApp } from '../state/AppContext'
 import { newId } from '../lib/id'
 import { knownStations } from '../lib/routes'
 import { payTypeOf } from '../lib/payroll'
-import { selectionFor } from '../lib/classSlots'
+import { isAutoShiftTitle, selectionFor, shiftTitle } from '../lib/classSlots'
 import { guessCategory } from '../lib/guess'
 import { CATEGORY_LABELS, type EventCategory, type EventItem } from '../types'
 import { ChipGroup, Field, FieldRow, StationInput } from './ui'
@@ -40,6 +40,9 @@ export function blankEvent(dateKey: string, category: EventCategory = 'private')
  * 「面接」と書けば就活、「歯医者」と書けば私用。当てた理由も下に出す。
  * ただし**自分で選び直したら、そのあとは二度と書き換えない。**
  * 選んだ種類が勝手に戻ると、色が信用できなくなるため。
+ *
+ * バイトのコマを選ぶと、名前が「バイト BCD」になる（何コマ目に出るかを名前だけで分かるように）。
+ * こちらも**自分で書いた名前は書き換えない。**
  */
 export default function EventForm({
   value,
@@ -175,7 +178,11 @@ export default function EventForm({
           </FieldRow>
 
           {selectedJob && payTypeOf(selectedJob) === 'perClass' && hasSlots ? (
-            <Field label="担当するコマ" wide hint="選ぶと在校時間が自動で入ります">
+            <Field
+              label="担当するコマ"
+              wide
+              hint="選ぶと在校時間と、名前（バイト BCD）が自動で入ります"
+            >
               <ChipGroup
                 options={(selectedJob.classSlots ?? []).map((slot) => ({
                   value: slot.id,
@@ -184,15 +191,20 @@ export default function EventForm({
                 value={value.classSlotIds ?? []}
                 onChange={(ids) => {
                   const picked = selectionFor(selectedJob, ids)
+                  // 名前は、自分で書いていないときだけ入れ替える
+                  const title = isAutoShiftTitle(value.title)
+                    ? { title: shiftTitle(selectedJob, ids) }
+                    : {}
                   patch(
                     picked
                       ? {
+                          ...title,
                           classSlotIds: ids,
                           classCount: picked.slots.length,
                           start: picked.start,
                           end: picked.end,
                         }
-                      : { classSlotIds: ids, classCount: 0 },
+                      : { ...title, classSlotIds: ids, classCount: 0 },
                   )
                 }}
               />
