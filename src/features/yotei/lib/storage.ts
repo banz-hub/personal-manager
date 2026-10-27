@@ -16,6 +16,7 @@ import type {
   Trip,
 } from '../types'
 import { DEFAULT_PROFILE } from '../types'
+import { shiftLabelsOf } from './classSlots'
 
 /** アプリが持つデータ一式 */
 export interface AppData {
@@ -51,6 +52,22 @@ export const EMPTY_DATA: AppData = {
 }
 
 /**
+ * 古いバイトの予定の名前を、いまの書き方に揃える。
+ *
+ * 以前は「バイト BCD」と名前を付けていた。いまはコマだけ（バイトかどうかは色で分かる）。
+ * すでに入っている予定まで直せないと、同じ画面に 2 つの書き方が並ぶので、**読むときに揃える。**
+ * 直すのは読む側だけで、次にその予定を保存したときに新しい書き方で残る。
+ * 自分で書いた名前（「明光 テスト対策」）は「バイト」で始まらないので触らない。
+ */
+export function dropShiftPrefix(events: EventItem[]): EventItem[] {
+  return events.map((e) => {
+    if (e.category !== 'baito') return e
+    const labels = shiftLabelsOf(e.title)
+    return labels ? { ...e, title: labels } : e
+  })
+}
+
+/**
  * データ永続化層。
  * 今は IndexedDB (端末ローカル) だけだが、Repository 越しに使うことで
  * 将来クラウド同期の実装に差し替えられるようにしている。
@@ -83,6 +100,7 @@ class IndexedDbRepository implements Repository {
         Object.assign(data, { [key]: value })
       }
     }
+    data.events = dropShiftPrefix(data.events)
     return data
   }
 
@@ -126,7 +144,7 @@ export function parseBackup(raw: unknown): AppData {
     timetableLines: data.timetableLines ?? [],
     passes: data.passes ?? [],
     courses: data.courses ?? [],
-    events: data.events ?? [],
+    events: dropShiftPrefix(data.events ?? []),
     jobs: data.jobs ?? [],
     trips: data.trips ?? [],
     expenses: data.expenses ?? [],

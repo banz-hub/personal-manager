@@ -92,22 +92,40 @@ export function slotLabels(slots: ClassSlot[]): string {
 }
 
 /**
- * コマから予定の名前を作る（「バイト BCD」）。
+ * コマから予定の名前を作る（「BCD」）。
  *
  * **何コマ目に出るかを、予定の名前だけで分かるようにするため。**
  * カレンダーでは名前しか見えないので、開かないと分からないと意味がない。
+ * はじめは「バイト BCD」と付けていたが、**バイトかどうかは色で分かる**ので
+ * コマだけにした（2026-10-27 に本人の指定）。名前の場所は狭いので、要らない字を置かない。
  * コマを 1 つも選んでいなければ空（種類の名前「バイト」がそのまま出る）。
  */
 export function shiftTitle(job: Job, slotIds: string[]): string {
   const picked = selectionFor(job, slotIds)
-  const labels = picked ? slotLabels(picked.slots) : ''
-  return labels ? `バイト ${labels}` : ''
+  return picked ? slotLabels(picked.slots) : ''
+}
+
+/** 以前の書き方「バイト BCD」から、コマだけを取り出す。古い書き方でなければ null */
+export function shiftLabelsOf(title: string): string | null {
+  const m = title.trim().match(/^バイト[\s　]+(.+)$/)
+  return m ? m[1].trim() : null
 }
 
 /**
  * その名前を、こちらが自動で付けたものとみなしてよいか。
  * 自分で書いた名前（「明光 テスト対策」など）は書き換えない。
+ *
+ * コマの呼び名だけでできた名前（「BCD」「朝・夜勤」）も自動とみなす。
+ * そうしないと、コマを選び直したときに名前が古いまま残る。
  */
-export function isAutoShiftTitle(title: string): boolean {
-  return title.trim() === '' || /^バイト(\s|$)/.test(title.trim())
+export function isAutoShiftTitle(title: string, job?: Job): boolean {
+  const t = title.trim()
+  if (t === '') return true
+  // 以前は「バイト BCD」と付けていた
+  if (/^バイト(\s|　|$)/.test(t)) return true
+  if (!job) return false
+  const labels = (job.classSlots ?? []).map((s) => s.label.trim()).filter(Boolean)
+  if (labels.length === 0) return false
+  const parts = t.includes('・') ? t.split('・') : [...t]
+  return parts.every((p) => labels.includes(p.trim()))
 }

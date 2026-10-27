@@ -41,7 +41,8 @@ export function blankEvent(dateKey: string, category: EventCategory = 'private')
  * ただし**自分で選び直したら、そのあとは二度と書き換えない。**
  * 選んだ種類が勝手に戻ると、色が信用できなくなるため。
  *
- * バイトのコマを選ぶと、名前が「バイト BCD」になる（何コマ目に出るかを名前だけで分かるように）。
+ * バイトのコマを選ぶと、名前が「BCD」になる（何コマ目に出るかを名前だけで分かるように）。
+ * バイトかどうかは色で分かるので、名前に「バイト」は入れない。
  * こちらも**自分で書いた名前は書き換えない。**
  */
 export default function EventForm({
@@ -181,7 +182,7 @@ export default function EventForm({
             <Field
               label="担当するコマ"
               wide
-              hint="選ぶと在校時間と、名前（バイト BCD）が自動で入ります"
+              hint="選ぶと在校時間と、名前（BCD）が自動で入ります"
             >
               <ChipGroup
                 options={(selectedJob.classSlots ?? []).map((slot) => ({
@@ -192,7 +193,7 @@ export default function EventForm({
                 onChange={(ids) => {
                   const picked = selectionFor(selectedJob, ids)
                   // 名前は、自分で書いていないときだけ入れ替える
-                  const title = isAutoShiftTitle(value.title)
+                  const title = isAutoShiftTitle(value.title, selectedJob)
                     ? { title: shiftTitle(selectedJob, ids) }
                     : {}
                   patch(
