@@ -1,6 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { EventItem } from '../types'
-import { buildIcs, esc, eventsToExport, fold, titleOf, tripsToExport, utcOffset } from './ics'
+import {
+  buildIcs,
+  deliverIcs,
+  esc,
+  eventsToExport,
+  fold,
+  titleOf,
+  tripsToExport,
+  utcOffset,
+} from './ics'
 
 const ev = (patch: Partial<EventItem> & { id: string }): EventItem => ({
   title: '',
@@ -132,5 +141,72 @@ describe('通知', () => {
     })
     expect(text.match(/BEGIN:VALARM/g)).toHaveLength(3)
     expect(text).not.toContain('TRIGGER:-PT30M')
+  })
+})
+
+describe('書き出したファイルの渡し方', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  /** File を使える端末のふり。中身は名前と種類だけ見る */
+  class FakeFile {
+    name: string
+    type: string
+    constructor(_parts: unknown[], name: string, opts: { type: string }) {
+      this.name = name
+      this.type = opts.type
+    }
+  }
+
+  it('共有できる端末では共有メニューに渡す（iPhone）', async () => {
+    const shared: Array<{ name: string; type: string }> = []
+    vi.stubGlobal('File', FakeFile)
+    vi.stubGlobal('navigator', {
+      canShare: () => true,
+      share: async (d: { files: Array<{ name: string; type: string }> }) => {
+        shared.push({ name: d.files[0].name, type: d.files[0].type })
+      },
+    })
+    expect(await deliverIcs('yotei.ics', 'BEGIN:VCALENDAR')).toBe('shared')
+    expect(shared).toEqual([{ name: 'yotei.ics', type: 'text/calendar' }])
+  })
+
+  it('共有をやめたときは、代わりに保存し直したりしない', async () => {
+    vi.stubGlobal('File', FakeFile)
+    vi.stubGlobal('navigator', {
+      canShare: () => true,
+      share: async () => {
+        const e = new Error('cancel')
+        e.name = 'AbortError'
+        throw e
+      },
+    })
+    expect(await deliverIcs('yotei.ics', 'x')).toBe('cancelled')
+  })
+
+  it('共有できない端末では保存に回す', async () => {
+    const clicked: string[] = []
+    vi.stubGlobal('navigator', {})
+    vi.stubGlobal('File', undefined)
+    vi.stubGlobal('Blob', class {})
+    vi.stubGlobal('URL', { createObjectURL: () => 'blob:x', revokeObjectURL: () => {} })
+    vi.stubGlobal('window', { setTimeout: () => 0 })
+    vi.stubGlobal('document', {
+      createElement: () => ({
+        click: () => clicked.push('click'),
+        remove: () => {},
+        set href(_v: string) {},
+        set download(_v: string) {},
+      }),
+      body: { appendChild: () => {} },
+    })
+    expect(await deliverIcs('yotei.ics', 'x')).toBe('downloaded')
+    expect(clicked).toEqual(['click'])
+  })
+
+  it('どちらもできない端末では、できたことにしない', async () => {
+    vi.stubGlobal('navigator', {})
+    vi.stubGlobal('File', undefined)
+    vi.stubGlobal('document', undefined)
+    expect(await deliverIcs('yotei.ics', 'x')).toBe('failed')
   })
 })

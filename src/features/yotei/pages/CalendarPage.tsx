@@ -15,7 +15,7 @@ import {
 } from '../lib/date'
 import { timelineOn, type TimelineItem } from '../lib/schedule'
 import { labelOf, toneOf } from '../lib/tone'
-import { buildIcs, downloadIcs, eventsToExport, icsFilename, tripsToExport } from '../lib/ics'
+import { buildIcs, deliverIcs, eventsToExport, icsFilename, tripsToExport } from '../lib/ics'
 import { hourRange, layoutDay, weekDays, weekStartOf } from '../lib/week'
 import { useApp } from '../state/AppContext'
 import { CATEGORY_LABELS, type EventCategory, type EventItem } from '../types'
@@ -94,14 +94,28 @@ export default function CalendarPage() {
     eventsToExport(data.events, from, only).length +
     (!only || only === 'trip' ? tripsToExport(data.trips, from).length : 0)
 
-  const exportIcs = (from?: string, only?: EventCategory) => {
-    if (countFor(from, only) === 0) {
+  const exportIcs = async (from?: string, only?: EventCategory) => {
+    const n = countFor(from, only)
+    if (n === 0) {
       setExported('書き出す予定がありませんでした')
       return
     }
     const name = icsFilename(from, only)
-    downloadIcs(name, buildIcs(data.events, { places: data.places, trips: data.trips, from, only }))
-    setExported(`${countFor(from, only)}件を書き出しました（${name}）`)
+    setExported('書き出しています…')
+    const how = await deliverIcs(
+      name,
+      buildIcs(data.events, { places: data.places, trips: data.trips, from, only }),
+    )
+    // 何が起きたかをそのまま出す。「書き出しました」と出して何も起きていない、を無くす
+    setExported(
+      how === 'shared'
+        ? `${n}件を渡しました。開くアプリを選んでください`
+        : how === 'downloaded'
+          ? `${n}件を保存しました（${name}）`
+          : how === 'cancelled'
+            ? '共有をやめました'
+            : 'この端末ではファイルを渡せませんでした。パソコンで開いて試してください',
+    )
   }
 
   const items = useMemo(
@@ -241,16 +255,17 @@ export default function CalendarPage() {
         <p className="hint">
           <strong>授業以外の予定</strong>（バイト・就活・試験・私用）と<strong>旅行</strong>を .ics で書き出します。旅行は終日の予定として日をまたいで入ります。
           授業は時間割から毎週組み立てているので出しません。
-          パソコンなら Google カレンダー →「設定」→「インポート」、
-          iPhone なら書き出したファイルを開いて読み込みます。
+          パソコンなら Google カレンダー →「設定」→「インポート」。
+          iPhone では共有メニューが出るので、「ファイルに保存」か、自分宛にメールで送って
+          パソコンから読み込んでください（カレンダーのアプリで開けば、その端末のカレンダーに入ります）。
           同じ予定を入れ直しても<strong>二重になりません</strong>（予定ごとの印で上書きされます）。
           通知（1週間前・3日前・1日前・30分前）も一緒に入ります。
         </p>
         <div className="row">
-          <button type="button" className="btn grow" onClick={() => exportIcs(today)}>
+          <button type="button" className="btn grow" onClick={() => void exportIcs(today)}>
             今日から先（{countFor(today)}件）
           </button>
-          <button type="button" className="btn ghost grow" onClick={() => exportIcs()}>
+          <button type="button" className="btn ghost grow" onClick={() => void exportIcs()}>
             すべて（{countFor()}件）
           </button>
         </div>
@@ -270,7 +285,7 @@ export default function CalendarPage() {
                 type="button"
                 className="btn sm"
                 disabled={n === 0}
-                onClick={() => exportIcs(today, key)}
+                onClick={() => void exportIcs(today, key)}
               >
                 <span className={`tag t-${toneOf('event', key)}`}>{label}</span> {n}件
               </button>

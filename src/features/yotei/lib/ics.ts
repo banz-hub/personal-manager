@@ -272,6 +272,42 @@ export function icsFilename(from?: string, only?: EventCategory): string {
   return `yoteicho-${only ?? 'all-kinds'}-${from ? `from-${from}` : 'all'}.ics`
 }
 
+/**
+ * 書き出した結果。何が起きたかを画面に出すために返す。
+ * 「書き出しました」と出したのに何も起きていない、を無くすため。
+ */
+export type IcsDelivery = 'shared' | 'downloaded' | 'cancelled' | 'failed'
+
+/**
+ * 書き出したファイルを渡す。**iPhone では共有メニュー、パソコンでは保存。**
+ *
+ * iPhone でホーム画面から開いているとき（PWA）、`<a download>` での保存は**黙って何も起きない。**
+ * 画面には「書き出しました」と出るのにファイルがどこにも無い、という状態になっていた
+ * （2026-10-27 に実際に起きた）。共有メニューなら、その場でカレンダーやファイルに渡せる。
+ */
+export async function deliverIcs(filename: string, text: string): Promise<IcsDelivery> {
+  const nav = navigator as Navigator & { canShare?: (data: ShareData) => boolean }
+  if (typeof File !== 'undefined' && typeof nav.share === 'function') {
+    const file = new File([text], filename, { type: 'text/calendar' })
+    // canShare が無い端末もある。その場合は share を試して、断られたら保存に回す
+    if (!nav.canShare || nav.canShare({ files: [file] })) {
+      try {
+        await nav.share({ files: [file], title: filename })
+        return 'shared'
+      } catch (e) {
+        // 本人が共有メニューを閉じただけ。保存し直さない（二重に出ると驚くため）
+        if (e instanceof Error && e.name === 'AbortError') return 'cancelled'
+      }
+    }
+  }
+  try {
+    downloadIcs(filename, text)
+    return 'downloaded'
+  } catch {
+    return 'failed'
+  }
+}
+
 /** 書き出したファイルを端末に保存する */
 export function downloadIcs(filename: string, text: string): void {
   const blob = new Blob([text], { type: 'text/calendar;charset=utf-8' })
