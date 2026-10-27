@@ -255,11 +255,16 @@ export default function CalendarPage() {
         <p className="hint">
           <strong>授業以外の予定</strong>（バイト・就活・試験・私用）と<strong>旅行</strong>を .ics で書き出します。旅行は終日の予定として日をまたいで入ります。
           授業は時間割から毎週組み立てているので出しません。
-          パソコンなら Google カレンダー →「設定」→「インポート」。
-          iPhone では共有メニューが出るので、「ファイルに保存」か、自分宛にメールで送って
-          パソコンから読み込んでください（カレンダーのアプリで開けば、その端末のカレンダーに入ります）。
-          同じ予定を入れ直しても<strong>二重になりません</strong>（予定ごとの印で上書きされます）。
-          通知（1週間前・3日前・1日前・30分前）も一緒に入ります。
+          <strong>書き出したファイルは、エージェントに渡してください。</strong>
+          分類どおりの色と通知（1週間前・3日前・1日前・30分前）を付けて Google カレンダーに入れます。
+          すでに入っている予定は二重にしません。
+          iPhone では共有メニューが出るので、「ファイルに保存」か自分宛にメールで送ってから渡してください。
+        </p>
+        <p className="hint">
+          Google カレンダーの「設定」→「インポート」に自分で読み込ませることもできますが、
+          <strong>件数が多いと1件も入りません。</strong>
+          23件は全部入ったのに、30件・56件・75件では0件だった（2026-10-27 に確認）。
+          20件くらいまでなら自分で読み込めます。
         </p>
         <div className="row">
           <button type="button" className="btn grow" onClick={() => void exportIcs(today)}>
@@ -271,10 +276,11 @@ export default function CalendarPage() {
         </div>
         <h3 className="section">種類ごとに分けて出す</h3>
         <p className="hint">
-          <strong>Google カレンダーは、予定ごとの色を読み込みません。</strong>取り込んだ先のカレンダーの色になります。
-          色を分けたいときは、Google で種類ごとのカレンダー（バイト・就活…）を作って色を決め、
+エージェントに渡すなら分ける必要はありません（分類どおりに色を付けます）。
+          <strong>自分で読み込ませるときは、予定ごとの色が無視されます。</strong>
+          その場合は Google で種類ごとのカレンダー（バイト・就活…）を作って色を決め、
           ここで種類ごとに書き出したファイルを、それぞれのカレンダーに読み込ませてください。
-          これなら、よてい帳と同じ分け方のまま向こうでも色が付きます。
+          件数も分かれるので、インポートが落ちにくくなります。
         </p>
         <div className="row tight">
           {(Object.entries(CATEGORY_LABELS) as Array<[EventCategory, string]>).map(([key, label]) => {
