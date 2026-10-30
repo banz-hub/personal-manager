@@ -6,8 +6,8 @@ import { payPeriodEndingIn, payTypeOf, summarizePay, yearlyPay } from '../lib/pa
 import { useApp } from '../state/AppContext'
 
 const SUB = [
-  { to: '/yotei/money', label: '交通費' },
   { to: '/yotei/pay', label: '給与' },
+  { to: '/yotei/money', label: '交通費' },
   { to: '/yotei/jobs', label: 'バイト先' },
 ]
 

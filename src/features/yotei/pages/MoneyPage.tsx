@@ -14,8 +14,8 @@ import {
 } from '../types'
 
 const SUB = [
-  { to: '/yotei/money', label: '交通費' },
   { to: '/yotei/pay', label: '給与' },
+  { to: '/yotei/money', label: '交通費' },
   { to: '/yotei/jobs', label: 'バイト先' },
 ]
 

@@ -187,8 +187,6 @@ export interface DailyReview {
   /** そのうち学習にあてた分 */
   studyMin: number
   /** 筋トレの実績 (分)。正本は筋トレログなので、こちらは読んだ値を写すだけ */
-  workoutMin: number
-  workoutDone: boolean
   /** ルールで導いた所見。「見積もりが甘い」「開始が遅かった」など */
   findings: string[]
   note?: string
@@ -222,10 +220,6 @@ export interface Settings {
   studyChunkMin: number
   /** 1 日に予定へ載せる学習項目の上限。多すぎると今日の話でなくなる */
   studyPerDayMax: number
-  /** 筋トレログから今日のトレーニングを読むか */
-  useKintore: boolean
-  /** 前日の負荷が高い日は、詰め込みの上限を自動で下げるか */
-  easeAfterWorkout: boolean
   /** 通知を出すか */
   notifyEnabled: boolean
   /** コマの何分前に知らせるか */
@@ -270,8 +264,6 @@ export const DEFAULT_SETTINGS: Settings = {
   travelAllowanceMin: 60,
   studyChunkMin: 30,
   studyPerDayMax: 4,
-  useKintore: true,
-  easeAfterWorkout: true,
   notifyEnabled: true,
   notifyBeforeMin: 10,
   useSleep: true,
@@ -618,13 +610,6 @@ export interface WeeklySummary {
     activeCompanies: number
     /** 3 日以内に迫っている予定 */
     upcomingCount: number
-  }
-  workout: {
-    count: number
-    totalMin: number
-    restDays: number
-    /** 読めなかったときは null */
-    available: boolean
   }
   /**
    * タイマーでやりきったセット数。

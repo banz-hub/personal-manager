@@ -19,11 +19,10 @@ export default function SearchSheet({ onClose }: { onClose: () => void }) {
       search({
         query,
         tasks: data.tasks,
-        nodes: data.nodes,
         companies: data.companies,
         selections: data.selections,
       }),
-    [query, data.tasks, data.nodes, data.companies, data.selections],
+    [query, data.tasks, data.companies, data.selections],
   )
 
   const groups = groupHits(hits)

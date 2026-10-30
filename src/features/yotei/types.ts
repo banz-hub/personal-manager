@@ -204,6 +204,8 @@ export interface EventItem {
   classSlotIds?: string[]
   /** 何分前に知らせるか。未設定なら通知しない */
   remindMinutesBefore?: number
+  /** Google カレンダーから取り込んだ予定の印。取り込み直したときに同じ予定だと分かるため */
+  sourceUid?: string
 }
 
 /**

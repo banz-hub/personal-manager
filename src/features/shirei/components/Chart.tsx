@@ -24,40 +24,14 @@ export function BarChart({ stats }: { stats: PeriodStats[] }) {
         {stats.map((s, i) => (
           <div key={s.bucket.label} className="chart-col">
             <div className="chart-track">
-              {/* 中身の内訳も色分けして積む。何に使ったかが一目で分かるように */}
               <div className="chart-bar" style={{ height: `${Math.round(rs[i] * 100)}%` }}>
-                <span
-                  className="seg task"
-                  style={{ flexGrow: s.taskMin }}
-                  title={`タスク ${formatDuration(s.taskMin)}`}
-                />
-                <span
-                  className="seg study"
-                  style={{ flexGrow: s.studyMin }}
-                  title={`学習 ${formatDuration(s.studyMin)}`}
-                />
-                <span
-                  className="seg workout"
-                  style={{ flexGrow: s.workoutMin }}
-                  title={`筋トレ ${formatDuration(s.workoutMin)}`}
-                />
+                <span className="seg task" style={{ flexGrow: 1 }} title={formatDuration(s.totalMin)} />
               </div>
             </div>
             <div className="chart-label">{s.bucket.label}</div>
             <div className="chart-value">{s.totalMin > 0 ? formatDuration(s.totalMin) : '—'}</div>
           </div>
         ))}
-      </div>
-      <div className="chart-legend">
-        <span>
-          <i className="seg task" /> タスク
-        </span>
-        <span>
-          <i className="seg study" /> 学習
-        </span>
-        <span>
-          <i className="seg workout" /> 筋トレ
-        </span>
       </div>
     </div>
   )

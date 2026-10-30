@@ -1,12 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { BarChart } from '../components/Chart'
 import { Banner, Empty, Stat } from '../components/ui'
-import {
-  loadKintoreDay,
-  loadKintoreRange,
-  type KintoreDay,
-  type WorkoutDay,
-} from '../lib/bridge/kintore'
 import { addDays, formatDate, formatDuration, todayKey } from '../lib/date'
 import { carryToNextDay, listOn } from '../lib/daylist'
 import { buildReview } from '../lib/review'
@@ -73,7 +67,6 @@ function Daily() {
   const { data, upsert, replaceList } = useApp()
   const [date, setDate] = useState(todayKey())
   const [message, setMessage] = useState('')
-  const [kintore, setKintore] = useState<KintoreDay | null>(null)
 
   const plan = data.plans.find((p) => p.date === date)
   const logs = useMemo(() => data.logs.filter((l) => l.date === date), [data.logs, date])
@@ -81,40 +74,16 @@ function Daily() {
   // その日の「やること」に入れたもの。完了・未完了はここで数える
   const listed = useMemo(() => listOn(data.tasks, date).map((t) => t.id), [data.tasks, date])
 
-  // 筋トレの実績は筋トレログが正本。今日ぶんだけ読んで写す
-  useEffect(() => {
-    if (!data.settings.useKintore || date !== todayKey()) {
-      setKintore(null)
-      return
-    }
-    let alive = true
-    void loadKintoreDay().then((d) => {
-      if (alive) setKintore(d)
-    })
-    return () => {
-      alive = false
-    }
-  }, [date, data.settings.useKintore])
-
-  const workout = useMemo(
-    () =>
-      kintore?.available
-        ? { minutes: kintore.todayMinutes ?? 0, done: kintore.doneToday }
-        : undefined,
-    [kintore],
-  )
-
   const saved = data.reviews.find((r) => r.date === date)
 
   const review = useMemo(
     () =>
       saved ??
-      buildReview({ date, plan, listed, tasks: data.tasks, logs, nodes: data.nodes, sessions, workout }),
-    [saved, date, plan, listed, data.tasks, logs, data.nodes, sessions, workout],
+      buildReview({ date, plan, listed, tasks: data.tasks, logs, nodes: data.nodes, sessions }),
+    [saved, date, plan, listed, data.tasks, logs, data.nodes, sessions],
   )
 
   const titleOf = (id: string) => data.tasks.find((t) => t.id === id)?.title ?? '（削除済み）'
-  const nodeTitleOf = (id: string) => data.nodes.find((n) => n.id === id)?.title ?? '（削除済み）'
 
   // タスクの実績と学習の実績を同じ分野の物差しで足す
   const byArea = useMemo(() => {
@@ -130,7 +99,7 @@ function Daily() {
   const save = () => {
     upsert(
       'reviews',
-      buildReview({ date, plan, listed, tasks: data.tasks, logs, nodes: data.nodes, sessions, workout }),
+      buildReview({ date, plan, listed, tasks: data.tasks, logs, nodes: data.nodes, sessions }),
     )
     setMessage('レビューを保存しました')
   }
@@ -171,7 +140,6 @@ function Daily() {
       <div className="stats">
         <Stat k="完了" v={`${review.doneTaskIds.length + review.doneNodeIds.length}件`} />
         <Stat k="実績" v={formatDuration(review.actualMin)} />
-        <Stat k="うち学習" v={formatDuration(review.studyMin)} />
       </div>
 
       <section className="bucket">
@@ -233,23 +201,6 @@ function Daily() {
         )}
       </section>
 
-      {(review.doneNodeIds.length > 0 || review.undoneNodeIds.length > 0) && (
-        <section className="bucket">
-          <h2 className="section">学習</h2>
-          {review.doneNodeIds.map((id) => (
-            <div key={id} className="task is-done">
-              <span className="task-title done">{nodeTitleOf(id)}</span>
-            </div>
-          ))}
-          {review.undoneNodeIds.map((id) => (
-            <div key={id} className="task b-urgent">
-              <span className="task-title">{nodeTitleOf(id)}</span>
-              <span className="dim">手をつけられなかった</span>
-            </div>
-          ))}
-        </section>
-      )}
-
       <div className="row">
         <button type="button" className="btn grow" onClick={save}>
           {saved ? 'レビューを更新' : 'レビューを保存'}
@@ -274,22 +225,7 @@ function Weekly() {
   const { data, upsert } = useApp()
   const today = todayKey()
   const [weekStart, setWeekStart] = useState(() => weekStartOf(today))
-  const [workouts, setWorkouts] = useState<WorkoutDay[] | null>(null)
   const [message, setMessage] = useState('')
-
-  useEffect(() => {
-    if (!data.settings.useKintore) {
-      setWorkouts(null)
-      return
-    }
-    let alive = true
-    void loadKintoreRange(weekStart, addDays(weekStart, 6)).then((w) => {
-      if (alive) setWorkouts(w)
-    })
-    return () => {
-      alive = false
-    }
-  }, [weekStart, data.settings.useKintore])
 
   const saved = data.weeklyReviews.find((r) => r.weekStart === weekStart)
 
@@ -304,14 +240,13 @@ function Weekly() {
       sessions: data.sessions,
       companies: data.companies,
       selections: data.selections,
-      workouts,
     })
 
   // 保存済みがあればその時点の姿を、無ければその場で計算して見せる
   const summary = useMemo(
     () => saved?.summary ?? compute(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [saved, weekStart, data, workouts],
+    [saved, weekStart, data],
   )
 
   const save = () => {
@@ -393,24 +328,6 @@ function Weekly() {
       </section>
 
       <section className="bucket">
-        <h2 className="section">学習</h2>
-        <div className="stats">
-          <Stat k="学習時間" v={formatDuration(summary.study.totalMin)} />
-          <Stat k="回数" v={`${summary.study.sessions}`} />
-        </div>
-        {summary.study.byArea.length > 0 && (
-          <div className="timeline">
-            {summary.study.byArea.map(([area, min]) => (
-              <div key={area} className="blk">
-                <span className="blk-time">{AREA_LABELS[area] ?? area}</span>
-                <span className="blk-title">{formatDuration(min)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="bucket">
         <h2 className="section">集中</h2>
         {summary.focusSets == null ? (
           // タイマーより前に作った週次。0 と出すと「その週はやらなかった」に見える
@@ -443,22 +360,6 @@ function Weekly() {
         </p>
       </section>
 
-      <section className="bucket">
-        <h2 className="section">筋トレ</h2>
-        {!summary.workout.available ? (
-          <Empty>筋トレログを読めませんでした</Empty>
-        ) : (
-          <>
-            <div className="stats">
-              <Stat k="回数" v={`${summary.workout.count}`} />
-              <Stat k="合計" v={formatDuration(summary.workout.totalMin)} />
-              <Stat k="休養日" v={`${summary.workout.restDays}`} />
-            </div>
-            <p className="hint">正本は筋トレログです。ここに出しているのは読み取った値です。</p>
-          </>
-        )}
-      </section>
-
       <button type="button" className="btn" onClick={save}>
         {saved ? '週次レビューを更新' : '週次レビューを保存'}
       </button>
@@ -479,26 +380,11 @@ function Weekly() {
 function Periodic({ kind }: { kind: 'month' | 'year' }) {
   const { data } = useApp()
   const today = todayKey()
-  const [workouts, setWorkouts] = useState<WorkoutDay[] | null>(null)
 
   const buckets: Bucket[] = useMemo(
     () => (kind === 'month' ? monthBuckets(today, 6) : yearBuckets(today, 3)),
     [kind, today],
   )
-
-  useEffect(() => {
-    if (!data.settings.useKintore) {
-      setWorkouts(null)
-      return
-    }
-    let alive = true
-    void loadKintoreRange(buckets[0].from, buckets.at(-1)!.to).then((w) => {
-      if (alive) setWorkouts(w)
-    })
-    return () => {
-      alive = false
-    }
-  }, [buckets, data.settings.useKintore])
 
   const stats = useMemo(
     () =>
@@ -508,10 +394,9 @@ function Periodic({ kind }: { kind: 'month' | 'year' }) {
         sessions: data.sessions,
         nodes: data.nodes,
         plans: data.plans,
-        workouts,
         studyTaskIds: new Set(data.tasks.filter((t) => t.study).map((t) => t.id)),
       }),
-    [buckets, data.logs, data.sessions, data.nodes, data.plans, data.tasks, workouts],
+    [buckets, data.logs, data.sessions, data.nodes, data.plans, data.tasks],
   )
 
   const total = totalOf(stats)
@@ -561,18 +446,12 @@ function Periodic({ kind }: { kind: 'month' | 'year' }) {
         <section className="bucket">
           <h2 className="section">この期間の合計</h2>
           <div className="stats">
-            <Stat k="タスク" v={formatDuration(total.taskMin)} />
-            <Stat k="学習" v={formatDuration(total.studyMin)} />
-            <Stat k="筋トレ" v={`${total.workoutCount}回`} />
+            <Stat k="合計" v={formatDuration(total.totalMin)} />
           </div>
           <p className="dim">
             予定 {total.planned}件 / 完了 {total.done}件
           </p>
         </section>
-      )}
-
-      {!workouts && data.settings.useKintore && (
-        <p className="hint">筋トレログを読めていないため、筋トレのぶんは入っていません。</p>
       )}
     </>
   )

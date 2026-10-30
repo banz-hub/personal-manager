@@ -1,18 +1,17 @@
 /**
  * 横断の検索。
  *
- * タスク・学習項目・企業・選考の予定を、ひとつの検索欄から探せるようにする。
+ * タスク・企業・選考の予定を、ひとつの検索欄から探せるようにする。
  * 数が増えてくると「どこに入れたか」を思い出せなくなるため。
  *
  * 手の込んだ検索はしない。ひらがな・カタカナの揺れと大文字小文字だけそろえて、
  * 部分一致で拾う。それ以上は、探すより一覧を見たほうが早い。
  */
 
-import type { Company, SelectionEvent, StudyNode, Task } from '../types'
-import { AREA_LABELS, MASTERY_LABELS, SELECTION_KIND_LABELS, STAGE_LABELS } from '../types'
-import { pathLabel } from './study'
+import type { Company, SelectionEvent, Task } from '../types'
+import { AREA_LABELS, SELECTION_KIND_LABELS, STAGE_LABELS } from '../types'
 
-export type HitKind = 'task' | 'node' | 'company' | 'selection'
+export type HitKind = 'task' | 'company' | 'selection'
 
 export interface Hit {
   kind: HitKind
@@ -28,7 +27,6 @@ export interface Hit {
 
 export const HIT_LABELS: Record<HitKind, string> = {
   task: 'タスク',
-  node: '学習',
   company: '企業',
   selection: '選考の予定',
 }
@@ -52,7 +50,6 @@ function match(haystack: string, needle: string): boolean {
 export interface SearchInput {
   query: string
   tasks: Task[]
-  nodes: StudyNode[]
   companies: Company[]
   selections: SelectionEvent[]
   limit?: number
@@ -81,19 +78,6 @@ export function search(input: SearchInput): Hit[] {
       to: '/tasks',
       // 題名に当たったもの、まだ終わっていないものを上に
       score: (match(t.title, q) ? 20 : 5) + (open ? 10 : 0),
-    })
-  }
-
-  for (const n of input.nodes) {
-    if (!match(n.title, q) && !match(n.note ?? '', q)) continue
-    const path = pathLabel(input.nodes, n.id)
-    out.push({
-      kind: 'node',
-      id: n.id,
-      title: n.title,
-      detail: [path, MASTERY_LABELS[n.mastery ?? 'new']].filter(Boolean).join(' / '),
-      to: '/study',
-      score: match(n.title, q) ? 18 : 5,
     })
   }
 
@@ -131,7 +115,7 @@ export function search(input: SearchInput): Hit[] {
 }
 
 export function groupHits(hits: Hit[]): Array<[HitKind, Hit[]]> {
-  const order: HitKind[] = ['task', 'node', 'company', 'selection']
+  const order: HitKind[] = ['task', 'company', 'selection']
   return order
     .map((k) => [k, hits.filter((h) => h.kind === k)] as [HitKind, Hit[]])
     .filter(([, list]) => list.length > 0)

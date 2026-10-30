@@ -8,7 +8,6 @@
 
 import type { DayPlan, StudyNode, StudySession, TaskArea, TaskLog } from '../types'
 import { AREA_LABELS } from '../types'
-import type { WorkoutDay } from './bridge/kintore'
 import { addDays, dateKey, parseDate } from './date'
 import { workBlocks } from './scheduler'
 import { areaOf } from './study'
@@ -62,7 +61,6 @@ export interface PeriodStats {
   totalMin: number
   taskMin: number
   studyMin: number
-  workoutMin: number
   /** 予定に入れたコマ数と、そのうち終えた数 */
   planned: number
   done: number
@@ -71,7 +69,6 @@ export interface PeriodStats {
   /** 習得まで進んだ学習項目 */
   masteredCount: number
   /** 筋トレの回数 */
-  workoutCount: number
 }
 
 export interface StatsInput {
@@ -80,7 +77,6 @@ export interface StatsInput {
   sessions: StudySession[]
   nodes: StudyNode[]
   plans: DayPlan[]
-  workouts: WorkoutDay[] | null
   /** 学習のタスクの id。そのタスクの記録はタスクではなく学習の時間に数える */
   studyTaskIds?: Set<string>
 }
@@ -92,14 +88,12 @@ export function buildStats(input: StatsInput): PeriodStats[] {
     const logs = input.logs.filter((l) => inRange(l.date))
     const sessions = input.sessions.filter((s) => inRange(s.date))
     const plans = input.plans.filter((p) => inRange(p.date))
-    const workouts = (input.workouts ?? []).filter((w) => inRange(w.date))
 
     const isStudy = (l: TaskLog) => input.studyTaskIds?.has(l.taskId) ?? false
     const taskMin = logs.filter((l) => !isStudy(l)).reduce((sum, l) => sum + l.actualMin, 0)
     const studyMin =
       sessions.reduce((sum, s) => sum + s.minutes, 0) +
       logs.filter(isStudy).reduce((sum, l) => sum + l.actualMin, 0)
-    const workoutMin = workouts.reduce((sum, w) => sum + w.minutes, 0)
 
     const areaMap = new Map<TaskArea, number>()
     for (const l of logs) areaMap.set(l.area, (areaMap.get(l.area) ?? 0) + l.actualMin)
@@ -112,15 +106,13 @@ export function buildStats(input: StatsInput): PeriodStats[] {
 
     return {
       bucket,
-      totalMin: taskMin + studyMin + workoutMin,
+      totalMin: taskMin + studyMin,
       taskMin,
       studyMin,
-      workoutMin,
       planned: blocks.length,
       done: blocks.filter((b) => b.doneAt).length,
       byArea: [...areaMap.entries()].sort((a, b) => b[1] - a[1]),
       masteredCount: sessions.filter((s) => s.mastery === 'mastered').length,
-      workoutCount: workouts.length,
     }
   })
 }
@@ -136,12 +128,10 @@ export function totalOf(stats: PeriodStats[]): PeriodStats | null {
     totalMin: stats.reduce((n, s) => n + s.totalMin, 0),
     taskMin: stats.reduce((n, s) => n + s.taskMin, 0),
     studyMin: stats.reduce((n, s) => n + s.studyMin, 0),
-    workoutMin: stats.reduce((n, s) => n + s.workoutMin, 0),
     planned: stats.reduce((n, s) => n + s.planned, 0),
     done: stats.reduce((n, s) => n + s.done, 0),
     byArea: [...areaMap.entries()].sort((a, b) => b[1] - a[1]),
     masteredCount: stats.reduce((n, s) => n + s.masteredCount, 0),
-    workoutCount: stats.reduce((n, s) => n + s.workoutCount, 0),
   }
 }
 

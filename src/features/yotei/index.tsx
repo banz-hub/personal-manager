@@ -56,13 +56,14 @@ export const yotei: Feature = {
   label: 'よてい帳',
   nav: [
     { to: '/yotei/calendar', label: '予定', icon: '📅', primary: true, match: ['/yotei/timetable', '/yotei/trips'] },
+    { to: '/yotei/pay', label: '給与', icon: '💴', primary: true, match: ['/yotei/money', '/yotei/jobs'] },
     {
       to: '/yotei/travel',
       label: '移動',
       icon: '🚃',
       match: ['/yotei/routes', '/yotei/bulk', '/yotei/trains', '/yotei/passes'],
     },
-    { to: '/yotei/money', label: 'お金', icon: '💴', match: ['/yotei/pay', '/yotei/jobs'] },
+    
     // 「今日どう動くか」は本体の今日とは別もの。出発時刻と交通費の話
     { to: '/yotei', label: '今日の移動', icon: '📍', match: ['/yotei/todos'] },
     { to: '/yotei/settings', label: '予定の設定', icon: '🛠️' },

@@ -8,7 +8,6 @@ import type {
   StudySession,
   TaskLog,
 } from '../types'
-import type { WorkoutDay } from './bridge/kintore'
 import {
   buildWeekly,
   daysLeftInWeek,
@@ -36,7 +35,6 @@ function input(patch: Partial<WeeklyInput> = {}): WeeklyInput {
     sessions: [],
     companies: [],
     selections: [],
-    workouts: [],
     ...patch,
   }
 }
@@ -77,8 +75,6 @@ function review(date: string, deferred: string[]): DailyReview {
     plannedMin: 0,
     actualMin: 0,
     studyMin: 0,
-    workoutMin: 0,
-    workoutDone: false,
     findings: [],
     createdAt: '',
   }
@@ -243,24 +239,6 @@ describe('就活の集計', () => {
   })
 })
 
-describe('筋トレの集計', () => {
-  it('回数・時間・休養日を出す', () => {
-    const workouts: WorkoutDay[] = [
-      { date: MON, minutes: 55 },
-      { date: '2026-09-09', minutes: 40 },
-    ]
-    const s = buildWeekly(input({ workouts }))
-    expect(s.workout.count).toBe(2)
-    expect(s.workout.totalMin).toBe(95)
-    expect(s.workout.restDays).toBe(5)
-    expect(s.workout.available).toBe(true)
-  })
-
-  it('連携が読めなければ、そう分かるようにする', () => {
-    expect(buildWeekly(input({ workouts: null })).workout.available).toBe(false)
-  })
-})
-
 describe('来週改善すべきこと', () => {
   it('多くても3つまでしか返さない', () => {
     const s = buildWeekly(
@@ -269,15 +247,6 @@ describe('来週改善すべきこと', () => {
         reviews: [review(MON, ['a', 'b'])],
         logs: [log({ taskId: 'c', date: MON, plannedMin: 30, actualMin: 90 })],
         nodes: NODES,
-        workouts: [
-          { date: MON, minutes: 30 },
-          { date: '2026-09-08', minutes: 30 },
-          { date: '2026-09-09', minutes: 30 },
-          { date: '2026-09-10', minutes: 30 },
-          { date: '2026-09-11', minutes: 30 },
-          { date: '2026-09-12', minutes: 30 },
-          { date: '2026-09-13', minutes: 30 },
-        ],
       }),
     )
     expect(s.improvements).toHaveLength(3)
@@ -305,49 +274,11 @@ describe('来週改善すべきこと', () => {
     expect(s.improvements[0]).toContain('就活')
   })
 
-  it('7日連続でトレーニングしていたら休養を勧める', () => {
-    const s = buildWeekly(
-      input({
-        plans: [plan(MON, [{ id: 'a', done: true }])],
-        workouts: Array.from({ length: 7 }, (_, i) => ({
-          date: `2026-09-${String(7 + i).padStart(2, '0')}`,
-          minutes: 40,
-        })),
-      }),
-    )
-    expect(s.improvements.join()).toContain('休養日')
-  })
-
-  it('学習の記録が無ければ、そこを指摘する', () => {
-    const s = buildWeekly(
-      input({ plans: [plan(MON, [{ id: 'a', done: true }])], nodes: NODES, sessions: [] }),
-    )
-    expect(s.improvements.join()).toContain('学習の記録がありません')
-  })
-
-  it('分野が偏っていれば知らせる', () => {
-    const s = buildWeekly(
-      input({
-        plans: [plan(MON, [{ id: 'a', done: true }])],
-        nodes: NODES,
-        sessions: [
-          ses({ nodeId: 'open', date: MON, minutes: 200 }),
-          ses({ nodeId: 'ip', date: MON, minutes: 20 }),
-        ],
-      }),
-    )
-    expect(s.improvements.join()).toContain('寄っています')
-  })
-
   it('大きな崩れが無ければ、そう言う', () => {
     const s = buildWeekly(
       input({
         plans: [plan(MON, [{ id: 'a', done: true }, { id: 'b', done: true }])],
         logs: [log({ taskId: 'a', date: MON, plannedMin: 60, actualMin: 60 })],
-        workouts: [
-          { date: MON, minutes: 40 },
-          { date: '2026-09-09', minutes: 40 },
-        ],
       }),
     )
     expect(s.improvements).toHaveLength(1)

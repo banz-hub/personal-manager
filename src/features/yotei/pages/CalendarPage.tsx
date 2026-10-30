@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import EventForm, { blankEvent } from '../components/EventForm'
+import GoogleImport from '../components/GoogleImport'
 import SubNav from '../components/SubNav'
 import { Empty, Sheet } from '../components/ui'
 import {
@@ -249,6 +250,8 @@ export default function CalendarPage() {
           })}
         </ul>
       )}
+
+      <GoogleImport />
 
       <section className="bucket">
         <h2 className="section">Googleカレンダーへ出す</h2>

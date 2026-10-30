@@ -18,22 +18,18 @@ export function isOpen(t: Task): boolean {
   return t.status === 'todo' || t.status === 'doing'
 }
 
-/**
- * その日のリストで済みになっているか。
- * 学習のタスクは何日も続くので、タスクの状態ではなく「その日のぶん済み」の印で見る。
- */
-export function doneOn(t: Task, date: string): boolean {
-  if (t.study && isOpen(t)) return t.checkedOn === date
+/** その日のリストで済みになっているか */
+export function doneOn(t: Task): boolean {
   return !isOpen(t)
 }
 
 /** その日のリスト。まだのものが上、済んだものは下へ。それぞれ入れた順 */
 export function listOn(tasks: Task[], date: string): Task[] {
   return tasks
-    .filter((t) => t.pinnedDate === date && t.status !== 'dropped')
+    .filter((t) => !t.study && t.pinnedDate === date && t.status !== 'dropped')
     .sort((a, b) => {
-      const ad = doneOn(a, date) ? 1 : 0
-      const bd = doneOn(b, date) ? 1 : 0
+      const ad = doneOn(a) ? 1 : 0
+      const bd = doneOn(b) ? 1 : 0
       if (ad !== bd) return ad - bd
       return a.createdAt.localeCompare(b.createdAt)
     })
@@ -47,7 +43,7 @@ export function listOn(tasks: Task[], date: string): Task[] {
  */
 export function candidates(tasks: Task[], date: string): Task[] {
   return tasks
-    .filter((t) => isOpen(t) && t.pinnedDate !== date)
+    .filter((t) => !t.study && isOpen(t) && t.pinnedDate !== date)
     .sort((a, b) => {
       const ad = a.dueDate ?? '9999-99-99'
       const bd = b.dueDate ?? '9999-99-99'
@@ -80,15 +76,6 @@ export function quickTask(title: string, date: string, nowIso: string): Task {
 export function toggleDone(tasks: Task[], id: string, date: string, nowIso: string): Task[] {
   const task = tasks.find((t) => t.id === id)
   if (!task) return tasks
-
-  // 学習はタスクを終わらせず、その日のぶん済みの印だけ付け外しする
-  if (task.study && isOpen(task)) {
-    const next: Task =
-      task.checkedOn === date
-        ? { ...task, checkedOn: undefined }
-        : { ...task, checkedOn: date, lastWorkedOn: date }
-    return tasks.map((t) => (t.id === id ? next : t))
-  }
 
   if (!isOpen(task)) {
     const reopened: Task = {
@@ -130,7 +117,7 @@ export function carryToNextDay(tasks: Task[], date: string): CarryResult {
   const nextDay = addDays(date, 1)
   const carried: string[] = []
   const next = tasks.map((t) => {
-    if (t.pinnedDate !== date || doneOn(t, date)) return t
+    if (t.pinnedDate !== date || doneOn(t)) return t
     carried.push(t.id)
     return {
       ...t,
@@ -182,7 +169,7 @@ export function logTimer(
  */
 export function leftovers(tasks: Task[], date: string): Task[] {
   return tasks.filter(
-    (t) => t.pinnedDate != null && t.pinnedDate < date && !doneOn(t, t.pinnedDate),
+    (t) => !t.study && t.pinnedDate != null && t.pinnedDate < date && !doneOn(t),
   )
 }
 
@@ -190,7 +177,7 @@ export function leftovers(tasks: Task[], date: string): Task[] {
 export function pullLeftovers(tasks: Task[], date: string): CarryResult {
   const carried: string[] = []
   const next = tasks.map((t) => {
-    if (t.pinnedDate == null || t.pinnedDate >= date || doneOn(t, t.pinnedDate)) return t
+    if (t.pinnedDate == null || t.pinnedDate >= date || doneOn(t)) return t
     carried.push(t.id)
     return { ...t, pinnedDate: date, deferCount: (t.deferCount ?? 0) + 1, deferredOn: t.pinnedDate }
   })

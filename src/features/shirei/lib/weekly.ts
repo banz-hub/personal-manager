@@ -17,9 +17,7 @@ import type {
   TaskLog,
   WeeklySummary,
 } from '../types'
-import { AREA_LABELS } from '../types'
-import type { WorkoutDay } from './bridge/kintore'
-import { addDays, dateKey, daysBetween, formatDuration, parseDate, toMinutes } from './date'
+import { addDays, dateKey, daysBetween, parseDate, toMinutes } from './date'
 import { activeCompanies, upcomingSelections } from './jobhunt'
 import { workBlocks } from './scheduler'
 import { areaOf } from './study'
@@ -48,7 +46,6 @@ export interface WeeklyInput {
   companies: Company[]
   selections: SelectionEvent[]
   /** 筋トレログから読んだ実績。読めなければ null */
-  workouts: WorkoutDay[] | null
 }
 
 function median(values: number[]): number {
@@ -108,10 +105,6 @@ export function buildWeekly(input: WeeklyInput): WeeklySummary {
     (d) => d.daysLeft >= 0 && d.daysLeft <= 3,
   )
 
-  // ---- 筋トレ ----
-  const workouts = input.workouts?.filter((w) => inWeek(w.date)) ?? []
-  const workoutDates = new Set(workouts.map((w) => w.date))
-
   const summary: WeeklySummary = {
     weekStart,
     weekEnd,
@@ -138,19 +131,11 @@ export function buildWeekly(input: WeeklyInput): WeeklySummary {
       activeCompanies: activeCompanies(input.companies).length,
       upcomingCount: upcoming.length,
     },
-    workout: {
-      count: workouts.length,
-      totalMin: workouts.reduce((sum, w) => sum + w.minutes, 0),
-      restDays: 7 - workoutDates.size,
-      available: input.workouts != null,
-    },
-    // タスクと学習の両方から集める。どちらも同じ 1 セットとして数える。
-    // 手で付けた記録は pomodoros を持たないので 0 になる
     focusSets: [...logs, ...sessions].reduce((sum, r) => sum + (r.pomodoros ?? 0), 0),
     improvements: [],
   }
 
-  summary.improvements = improvementsFor(summary, input)
+  summary.improvements = improvementsFor(summary)
   return summary
 }
 
@@ -166,7 +151,7 @@ interface Candidate {
  * 記録から言えることだけを書く。データが無いことは書かない。
  * 3 つに絞るのは、全部並べると結局どれも手をつけないため。
  */
-function improvementsFor(s: WeeklySummary, input: WeeklyInput): string[] {
+function improvementsFor(s: WeeklySummary): string[] {
   const out: Candidate[] = []
 
   if (s.tasks.planned === 0) {
@@ -210,49 +195,10 @@ function improvementsFor(s: WeeklySummary, input: WeeklyInput): string[] {
     })
   }
 
-  // 学習の偏り。上位が全体の 7 割を超えていたら偏っている
-  const total = s.study.byArea.reduce((sum, [, m]) => sum + m, 0)
-  if (total > 0 && s.study.byArea.length >= 2) {
-    const [topArea, topMin] = s.study.byArea[0]
-    if (topMin / total >= 0.7) {
-      const others = s.study.byArea
-        .slice(1)
-        .map(([a, m]) => `${AREA_LABELS[a]} ${formatDuration(m)}`)
-        .join(' / ')
-      out.push({
-        severity: 45,
-        text: `時間の${Math.round((topMin / total) * 100)}%が${AREA_LABELS[topArea]}に寄っています（他は ${others}）。手薄なほうに1コマだけでも回すと、あとで慌てずに済みます。`,
-      })
-    }
-  }
-
-  // 学習そのものが動いていない
-  if (s.study.sessions === 0 && (input.nodes.length > 0 || studyIdsOf(input).size > 0)) {
-    out.push({
-      severity: 55,
-      text: 'この週は学習の記録がありません。学習を今日のリストに入れて「今やる」で測ると、ここに時間が出ます。',
-    })
-  }
-
-  // 筋トレ。読めた週だけ
-  if (s.workout.available) {
-    if (s.workout.count === 0) {
-      out.push({
-        severity: 35,
-        text: 'この週は筋トレの記録がありません。まず1回、短くても入れてみてください。',
-      })
-    } else if (s.workout.restDays === 0) {
-      out.push({
-        severity: 50,
-        text: `7日すべてトレーニングしています（計${formatDuration(s.workout.totalMin)}）。休養日を1日入れたほうが、結果として続きます。`,
-      })
-    }
-  }
-
   // 何も問題が無いときは、そう言う
   if (out.length === 0) {
     return [
-      `予定${s.tasks.planned}件のうち${s.tasks.done}件を完了、学習${formatDuration(s.study.totalMin)}。大きな崩れはありません。来週も同じ配分でいけます。`,
+      `予定${s.tasks.planned}件のうち${s.tasks.done}件を完了。大きな崩れはありません。来週も同じ配分でいけます。`,
     ]
   }
 
@@ -260,10 +206,6 @@ function improvementsFor(s: WeeklySummary, input: WeeklyInput): string[] {
     .sort((a, b) => b.severity - a.severity)
     .slice(0, 3)
     .map((c) => c.text)
-}
-
-function studyIdsOf(input: WeeklyInput): Set<string> {
-  return new Set(input.tasks.filter((t) => t.study && t.status !== 'dropped').map((t) => t.id))
 }
 
 /** 前の週・次の週へ動かす */

@@ -41,7 +41,6 @@ describe('検索', () => {
         task({ id: 't1', title: '線形代数のレポート' }),
         task({ id: 't2', title: '終わったもの', status: 'done' }),
       ],
-      nodes: NODES,
       companies: COMPANIES,
       selections: SELECTIONS,
     })
@@ -51,14 +50,9 @@ describe('検索', () => {
     expect(normalize('ITパスポート')).toBe(normalize('ｉｔパスポート'))
   })
 
-  it('タスク・学習・企業・選考をまたいで探せる', () => {
+  it('タスク・企業・選考をまたいで探せる', () => {
     expect(run('レポート').map((h) => h.kind)).toContain('task')
-    expect(run('開集合').map((h) => h.kind)).toContain('node')
     expect(run('dit').map((h) => h.kind)).toContain('company')
-  })
-
-  it('学習項目はどこにあるかも返す', () => {
-    expect(run('開集合')[0].detail).toContain('数学 / 位相空間論')
   })
 
   it('まだ終わっていないタスクが上に来る', () => {
@@ -68,7 +62,6 @@ describe('検索', () => {
         task({ id: 'done', title: '終わったもの', status: 'done' }),
         task({ id: 'open', title: '残っているもの' }),
       ],
-      nodes: [],
       companies: [],
       selections: [],
     })
@@ -118,7 +111,6 @@ describe('月次・年次の集計', () => {
       sessions,
       nodes: NODES,
       plans: [],
-      workouts: [{ date: '2026-09-07', minutes: 50 }],
     })
     const aug = stats[0]
     const sep = stats[1]
@@ -126,8 +118,7 @@ describe('月次・年次の集計', () => {
     expect(aug.taskMin).toBe(30)
     expect(sep.taskMin).toBe(60)
     expect(sep.studyMin).toBe(45)
-    expect(sep.workoutMin).toBe(50)
-    expect(sep.totalMin).toBe(155)
+    expect(sep.totalMin).toBe(105)
     expect(sep.masteredCount).toBe(1)
     expect(Object.fromEntries(sep.byArea)).toEqual({ math: 105 })
   })
@@ -139,7 +130,6 @@ describe('月次・年次の集計', () => {
       sessions,
       nodes: NODES,
       plans: [],
-      workouts: null,
     })
     const t = totalOf(stats)!
     expect(t.taskMin).toBe(90)
@@ -159,14 +149,13 @@ describe('月次・年次の集計', () => {
       sessions: [],
       nodes: NODES,
       plans: [],
-      workouts: null,
     })
     // 8月30分 → 9月60分
     expect(trendOf(stats)).toContain('増えています')
   })
 
   it('区切りが1つなら増減は言わない', () => {
-    expect(trendOf(buildStats({ buckets: monthBuckets(TODAY, 1), logs, sessions: [], nodes: [], plans: [], workouts: null }))).toBeNull()
+    expect(trendOf(buildStats({ buckets: monthBuckets(TODAY, 1), logs, sessions: [], nodes: [], plans: [] }))).toBeNull()
   })
 })
 
@@ -181,7 +170,6 @@ describe('学習のタスクの時間', () => {
       sessions: [],
       nodes: [],
       plans: [],
-      workouts: null,
       studyTaskIds: new Set(['st']),
     })
     expect(b.studyMin).toBe(40)
