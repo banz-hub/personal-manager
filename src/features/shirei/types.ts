@@ -233,7 +233,8 @@ export interface Settings {
   /** 目標の睡眠時間 (分) */
   targetSleepMin: number
   /** 目標の就寝時刻。ここから逆算して夜の作業の終わりを決める */
-  targetBedtime: string
+  /** 早起きの目標。この時刻までに起きた日を「続いた」と数える */
+  wakeGoal: string
   /** 起きてから作業に入るまでの支度 (分) */
   wakeBufferMin: number
   /** 寝る前に必要な支度 (分) */
@@ -269,7 +270,7 @@ export const DEFAULT_SETTINGS: Settings = {
   useSleep: true,
   // 大学生の必要量として一般に言われる 7〜9 時間の下寄り
   targetSleepMin: 450,
-  targetBedtime: '23:30',
+  wakeGoal: '07:00',
   wakeBufferMin: 30,
   bedtimeBufferMin: 30,
   showRoutine: true,

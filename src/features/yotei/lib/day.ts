@@ -12,7 +12,7 @@ import { lastRunBetween, lastRunChainHome, type LastRunHome } from './timetable'
 import { newId } from './id'
 import { chooseRuns, hasStopFor, type RunChoice } from './timetable'
 import type { Expense, ExpenseCategory, EventCategory } from '../types'
-import { toMinutes } from './date'
+import { fromMinutes, toMinutes } from './date'
 
 /** 登録区間が無い移動を、とりあえず何分とみなすか */
 export const UNKNOWN_TRAVEL_MINUTES = 30
@@ -321,4 +321,27 @@ export function trainChoicesFor(
     fallbackMinutes: plan.minutes + journey.walkMinutes + buffer,
     limit: 3,
   })
+}
+
+/**
+ * その日の朝いちばんの予定と、何時に準備を始めるか。予定が無ければ null。
+ * 移動が要らない予定（オンラインなど）も、準備のぶんだけ前に起きる。
+ */
+export function morningDuty(
+  plan: DayPlan,
+  prepMinutes: number,
+): { title: string; start: string; wakeBy: string; estimated: boolean } | null {
+  const first = plan.planned[0]
+  if (!first) return null
+  const { title, start } = first.item
+  const journey = first.journeys[0]
+  if (journey && !journey.previousDay) {
+    return { title, start, wakeBy: journey.prepareFrom, estimated: journey.routeUnknown }
+  }
+  return {
+    title,
+    start,
+    wakeBy: fromMinutes(Math.max(0, toMinutes(start) - prepMinutes)),
+    estimated: journey != null,
+  }
 }

@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import DayTimeline from '../components/DayTimeline'
+import { BedtimeAdvice, WakeStreakView } from '../components/SleepGoal'
 import RunningCard from '../components/RunningCard'
 import TaskForm from '../components/TaskForm'
 import { Banner, Empty, Popup, Sheet } from '../components/ui'
@@ -38,7 +39,7 @@ import {
   type PendingReminder,
 } from '../lib/reminders'
 import { completeStudy } from '../lib/review'
-import { recordSleep, summarize } from '../lib/sleep'
+import { bedtimeFor, recordSleep, summarize } from '../lib/sleep'
 import { freeGaps, longest, sleepOn, totalMin } from '../lib/timeline'
 import { useApp } from '../state/AppContext'
 import type { Running, Task } from '../types'
@@ -463,7 +464,7 @@ export default function TodayPage() {
           </div>
           {choices.length === 0 ? (
             <Empty>
-              選べるタスクがありません。<Link to="/tasks">タスク</Link>で一覧に足せます
+              選べるものがありません。上の欄に書くと今日のリストに入ります
             </Empty>
           ) : (
             <ul className="todo">
@@ -530,8 +531,8 @@ function SleepRow({ date }: { date: string }) {
   const summary = summarize(data.sleepLogs, date, s)
   const recorded = summary.minutes > 0 && !summary.ongoing
   const [open, setOpen] = useState(false)
-  const [bed, setBed] = useState(summary.bedAt ?? s.targetBedtime)
-  const [wake, setWake] = useState(summary.wakeAt ?? '07:00')
+  const [bed, setBed] = useState(summary.bedAt ?? bedtimeFor(s.wakeGoal, s.targetSleepMin))
+  const [wake, setWake] = useState(summary.wakeAt ?? s.wakeGoal)
   const [error, setError] = useState('')
 
   const save = () => {
@@ -556,8 +557,8 @@ function SleepRow({ date }: { date: string }) {
             type="button"
             className="btn ghost sm"
             onClick={() => {
-              setBed(summary.bedAt ?? s.targetBedtime)
-              setWake(summary.wakeAt ?? '07:00')
+              setBed(summary.bedAt ?? bedtimeFor(s.wakeGoal, s.targetSleepMin))
+              setWake(summary.wakeAt ?? s.wakeGoal)
               setOpen(true)
             }}
           >
@@ -565,6 +566,8 @@ function SleepRow({ date }: { date: string }) {
           </button>
         )}
       </div>
+      {date >= todayKey() && <BedtimeAdvice date={date} />}
+      <WakeStreakView compact />
       {!editing ? (
         <p className="sleep-line">
           <span>

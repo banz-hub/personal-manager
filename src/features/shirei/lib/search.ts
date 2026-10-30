@@ -75,7 +75,7 @@ export function search(input: SearchInput): Hit[] {
       ]
         .filter(Boolean)
         .join(' / '),
-      to: '/tasks',
+      to: '/',
       // 題名に当たったもの、まだ終わっていないものを上に
       score: (match(t.title, q) ? 20 : 5) + (open ? 10 : 0),
     })

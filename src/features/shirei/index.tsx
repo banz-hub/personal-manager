@@ -1,5 +1,5 @@
 /**
- * エージェント本体 (今日・タスク・就活・睡眠・ふりかえり・設定)。
+ * エージェント本体 (今日・就活・睡眠・ふりかえり・設定)。
  *
  * この機能が何を持っているかは、下の `shirei` だけを見れば分かる。
  * 画面を 1 つ足すときは pages にファイルを作り、`routes` に 1 行足す。
@@ -15,7 +15,6 @@ const JobPage = lazy(() => import('./pages/JobPage'))
 const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const SleepPage = lazy(() => import('./pages/SleepPage'))
-const TasksPage = lazy(() => import('./pages/TasksPage'))
 const TodayPage = lazy(() => import('./pages/TodayPage'))
 
 /**
@@ -42,9 +41,8 @@ export const shirei: Feature = {
   label: 'エージェント',
   nav: [
     { to: '/', label: '今日', icon: '🎯', primary: true },
-    { to: '/tasks', label: 'タスク', icon: '📋', primary: true },
     { to: '/job', label: '就活', icon: '💼' },
-    { to: '/sleep', label: '睡眠', icon: '😴' },
+    { to: '/sleep', label: '睡眠', icon: '😴', primary: true },
     { to: '/review', label: 'ふりかえり', icon: '🌙' },
     { to: '/settings', label: '設定', icon: '⚙️' },
   ],
@@ -57,7 +55,6 @@ export const shirei: Feature = {
   },
   routes: [
     { path: '/', element: page(<TodayPage />) },
-    { path: '/tasks', element: page(<TasksPage />) },
     { path: '/job', element: page(<JobPage />) },
     { path: '/sleep', element: page(<SleepPage />) },
     { path: '/review', element: page(<ReviewPage />) },

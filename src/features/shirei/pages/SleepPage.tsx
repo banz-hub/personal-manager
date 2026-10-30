@@ -6,9 +6,10 @@
  */
 
 import { useMemo, useState } from 'react'
+import { BedtimeAdvice, WakeStreakView } from '../components/SleepGoal'
 import { Banner, Empty, Field } from '../components/ui'
 import { addDays, formatDate, formatDuration, todayKey } from '../lib/date'
-import { advise, recordSleep, summarize, trend, type SleepSummary } from '../lib/sleep'
+import { advise, bedtimeFor, recordSleep, summarize, trend, type SleepSummary } from '../lib/sleep'
 import { useApp } from '../state/AppContext'
 
 const RATING_CLASS = {
@@ -27,8 +28,8 @@ export default function SleepPage() {
   const today = todayKey()
   const [message, setMessage] = useState('')
   const [wakeDay, setWakeDay] = useState(today)
-  const [bed, setBed] = useState(s.targetBedtime)
-  const [wake, setWake] = useState('07:00')
+  const [bed, setBed] = useState(() => bedtimeFor(s.wakeGoal, s.targetSleepMin))
+  const [wake, setWake] = useState(s.wakeGoal)
 
   const save = () => {
     const next = recordSleep(data.sleepLogs, wakeDay, bed, wake)
@@ -61,6 +62,16 @@ export default function SleepPage() {
     <div className="page">
       <strong>睡眠</strong>
       {message && <Banner>{message}</Banner>}
+
+      <section className="bucket">
+        <h2 className="section">早起き</h2>
+        <WakeStreakView />
+        <BedtimeAdvice date={today} />
+        <p className="hint">
+          緑が目標までに起きた日、赤が遅れた日、空きが記録の無い日です。記録の無い日は連続が途切れます。
+          入れ忘れた日は下の欄であとから入れられます。
+        </p>
+      </section>
 
       <section className="bucket">
         <h2 className="section">記録する</h2>
@@ -182,11 +193,11 @@ export default function SleepPage() {
               onChange={(e) => setSettings({ targetSleepMin: Number(e.target.value) })}
             />
           </Field>
-          <Field label="目標の就寝時刻">
+          <Field label="早起きの目標（起きる時刻）">
             <input
               type="time"
-              value={s.targetBedtime}
-              onChange={(e) => setSettings({ targetBedtime: e.target.value })}
+              value={s.wakeGoal}
+              onChange={(e) => e.target.value && setSettings({ wakeGoal: e.target.value })}
             />
           </Field>
         </div>

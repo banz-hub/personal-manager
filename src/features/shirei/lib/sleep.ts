@@ -344,3 +344,121 @@ export function advise(summary: SleepSummary, t: SleepTrend, settings: Settings)
   }
   return out
 }
+
+// ---------- 寝る時刻のおすすめ ----------
+
+/** 翌朝の最初の予定。よてい帳の計画から読む */
+export interface MorningDuty {
+  title: string
+  start: string
+  /** 準備を始める時刻。ここまでに起きる */
+  wakeBy: string
+  /** 経路が登録されておらず、時刻が目安のとき */
+  estimated: boolean
+}
+
+export interface BedtimePlan {
+  /** 起きる時刻 */
+  wake: string
+  /** 寝る時刻 */
+  bed: string
+  /** なぜその起床時刻か。画面にそのまま出す */
+  reason: string
+  /** 今夜の予定のせいで目標の睡眠時間が取れないとき、取れる長さ (分) */
+  shortBy?: number
+}
+
+/** 目標の睡眠時間と起きる時刻から、寝る時刻を出す */
+export function bedtimeFor(wake: string, targetSleepMin: number): string {
+  return fromMinutes((toMinutes(wake) - targetSleepMin + 1440) % 1440)
+}
+
+/** 昼より前は「夜のつづき」として 24 時より後に数える。0:30 を 23:30 より遅いと見るため */
+function nightMin(time: string): number {
+  const m = toMinutes(time)
+  return m < 12 * 60 ? m + 1440 : m
+}
+
+/**
+ * 今夜いつ寝るか。**早起きの目標と翌朝の予定の、早いほうに合わせる。**
+ *
+ * 予定が遅い日でも目標は動かさない。「明日は 10 時からだから遅くていい」とすると、
+ * 起きる時刻がそろわず、早起きが続かないため。
+ */
+export function planBedtime(input: {
+  wakeGoal: string
+  targetSleepMin: number
+  duty: MorningDuty | null
+  /** 今夜の最後の予定が終わる時刻 */
+  tonightEnd?: string
+}): BedtimePlan {
+  const { wakeGoal, targetSleepMin, duty, tonightEnd } = input
+  const dutyFirst = duty != null && toMinutes(duty.wakeBy) < toMinutes(wakeGoal)
+  const wake = dutyFirst ? duty.wakeBy : wakeGoal
+  const bed = bedtimeFor(wake, targetSleepMin)
+  const plan: BedtimePlan = {
+    wake,
+    bed,
+    reason: dutyFirst
+      ? `${duty.start}の「${duty.title}」に合わせて、${duty.wakeBy}に準備を始めます${duty.estimated ? '（経路が未登録なので目安）' : ''}`
+      : '早起きの目標の時刻です',
+  }
+  if (tonightEnd && nightMin(tonightEnd) > nightMin(bed)) {
+    plan.shortBy = toMinutes(wake) + 1440 - nightMin(tonightEnd)
+  }
+  return plan
+}
+
+// ---------- 早起きの継続 ----------
+
+export type WakeState = 'hit' | 'miss' | 'none'
+
+export interface WakeStreak {
+  /** いま続いている日数 */
+  current: number
+  /** これまでの最長 */
+  best: number
+  /** 古い順。hit=目標までに起きた / miss=遅れた / none=記録なし */
+  recent: Array<{ date: string; state: WakeState }>
+}
+
+function wakeState(logs: SleepLog[], date: string, settings: Settings): WakeState {
+  const s = summarize(logs, date, settings)
+  if (!s.wakeAt || s.ongoing) return 'none'
+  return toMinutes(s.wakeAt) <= toMinutes(settings.wakeGoal) ? 'hit' : 'miss'
+}
+
+/**
+ * 早起きが何日続いているか。
+ *
+ * **記録の無い日は途切れたものとして数える。**起きられたか分からない日を成功にはしない。
+ * ただし今日の分は、まだ入れていないだけなので途切れにしない（昨日までで数える）。
+ * 入れ忘れた日は睡眠の画面からあとで入れられ、そうすれば続きに戻る。
+ */
+export function wakeStreak(logs: SleepLog[], today: string, settings: Settings, days = 14): WakeStreak {
+  let cursor = wakeState(logs, today, settings) === 'none' ? addDays(today, -1) : today
+  let current = 0
+  while (wakeState(logs, cursor, settings) === 'hit') {
+    current += 1
+    cursor = addDays(cursor, -1)
+  }
+
+  let best = 0
+  let run = 0
+  let previous = ''
+  for (const date of [...new Set(logs.map((l) => l.date))].sort()) {
+    if (wakeState(logs, date, settings) !== 'hit') {
+      run = 0
+    } else {
+      run = previous && addDays(previous, 1) === date ? run + 1 : 1
+      best = Math.max(best, run)
+    }
+    previous = date
+  }
+
+  const recent = Array.from({ length: days }, (_, i) => {
+    const date = addDays(today, i - days + 1)
+    return { date, state: wakeState(logs, date, settings) }
+  })
+  return { current, best, recent }
+}

@@ -15,10 +15,13 @@
 
 import { get } from 'idb-keyval'
 import { yoteiStore as store } from '../../../yotei/bridge'
+import { buildDay, morningDuty } from '../../../yotei/lib/day'
 import { placeLabelBetween, spotBetween } from '../../../yotei/lib/schedule'
+import { repository } from '../../../yotei/lib/storage'
 import { labelOf } from '../../../yotei/lib/tone'
 import type { Interest as YTodoInterest, SpotKind, Todo as YTodo } from '../../../yotei/types'
-import { fromMinutes, parseDate, toMinutes } from '../date'
+import { addDays, fromMinutes, parseDate, toMinutes } from '../date'
+import type { MorningDuty } from '../sleep'
 import type { FreeSlot } from '../scheduler'
 
 /** 趣味・関心。名前がぶつかるので別名で受ける */
@@ -288,4 +291,24 @@ export function parseManualSlots(text: string): FreeSlot[] {
     if (e > s) out.push({ startMin: s, endMin: e, label: `${fromMinutes(s)}〜${fromMinutes(e)}` })
   }
   return out.sort((a, b) => a.startMin - b.startMin)
+}
+
+/** 寝る時刻のおすすめに使う、今夜の終わりと翌朝の最初の予定 */
+export interface NightInput {
+  duty: MorningDuty | null
+  tonightEnd?: string
+}
+
+/** 読めなければ空で返す。予定が読めなくても、早起きの目標からは出せるので */
+export async function loadNight(dateKey: string): Promise<NightInput> {
+  try {
+    const data = await repository.loadAll()
+    const ends = buildDay(data, dateKey).items.map((i) => i.end).sort()
+    return {
+      duty: morningDuty(buildDay(data, addDays(dateKey, 1)), data.profile.prepMinutes),
+      tonightEnd: ends.at(-1),
+    }
+  } catch {
+    return { duty: null }
+  }
 }

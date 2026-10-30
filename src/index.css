@@ -1775,3 +1775,42 @@ table.compare td:first-child {
   opacity: 0.45;
   text-decoration: line-through;
 }
+
+.bedtime,
+.wake-streak {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.bedtime-main {
+  margin: 0;
+}
+
+.bedtime-main strong {
+  font-size: 1.25em;
+}
+
+.wake-days {
+  display: grid;
+  grid-template-columns: repeat(14, 1fr);
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.wake-day {
+  aspect-ratio: 1;
+  max-width: 20px;
+  border-radius: 50%;
+  border: 1px solid #8888;
+}
+
+.wake-day.is-hit {
+  background: #3a9d6e;
+  border-color: #3a9d6e;
+}
+
+.wake-day.is-miss {
+  background: #d9634f;
+  border-color: #d9634f;
+}

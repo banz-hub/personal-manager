@@ -10,16 +10,18 @@ import { DEFAULT_SETTINGS, type Settings, type SleepLog } from '../types'
 import {
   advise,
   isAsleep,
+  planBedtime,
   rate,
   recordSleep,
   sleepAgain,
   startSleep,
   summarize,
   trend,
+  wakeStreak,
   wakeUp,
 } from './sleep'
 
-const S: Settings = { ...DEFAULT_SETTINGS, targetSleepMin: 450, targetBedtime: '23:30' }
+const S: Settings = { ...DEFAULT_SETTINGS, targetSleepMin: 450, wakeGoal: '07:00' }
 
 /** ローカル時刻で Date を作る。記録は端末の時計で押すため */
 const at = (s: string) => new Date(s)
@@ -265,5 +267,72 @@ describe('手で入れる', () => {
     expect(recordSleep([], '2026-09-08', '07:00', '07:00')).toBeNull()
     expect(recordSleep([], '2026-09-08', '07:00', '07:03')).toBeNull()
     expect(recordSleep([], '2026-09-08', '18:00', '12:00')).toBeNull()
+  })
+})
+
+describe('寝る時刻のおすすめ', () => {
+  const duty = (wakeBy: string) => ({ title: '面接', start: '09:00', wakeBy, estimated: false })
+
+  it('予定が無ければ、早起きの目標から逆算する', () => {
+    const p = planBedtime({ wakeGoal: '07:00', targetSleepMin: 450, duty: null })
+    expect(p).toMatchObject({ wake: '07:00', bed: '23:30' })
+  })
+
+  it('翌朝の予定が目標より早ければ、そちらに合わせる', () => {
+    const p = planBedtime({ wakeGoal: '07:00', targetSleepMin: 450, duty: duty('06:00') })
+    expect(p).toMatchObject({ wake: '06:00', bed: '22:30' })
+    expect(p.reason).toContain('面接')
+  })
+
+  it('予定が遅い日でも、目標より遅くはしない', () => {
+    const p = planBedtime({ wakeGoal: '07:00', targetSleepMin: 450, duty: duty('10:00') })
+    expect(p.wake).toBe('07:00')
+  })
+
+  it('今夜の予定が寝る時刻を越えたら、取れる長さを返す', () => {
+    const p = planBedtime({ wakeGoal: '06:00', targetSleepMin: 450, duty: null, tonightEnd: '23:00' })
+    expect(p.bed).toBe('22:30')
+    expect(p.shortBy).toBe(420)
+  })
+
+  it('寝る時刻が日付をまたいでも、今夜の予定を遅いと取り違えない', () => {
+    const p = planBedtime({ wakeGoal: '08:00', targetSleepMin: 450, duty: null, tonightEnd: '21:30' })
+    expect(p.bed).toBe('00:30')
+    expect(p.shortBy).toBeUndefined()
+  })
+})
+
+describe('早起きの継続', () => {
+  const T = '2026-11-10'
+  const logs = (...days: Array<[string, string]>) =>
+    days.reduce((l, [date, wake]) => recordSleep(l, date, '23:30', wake) ?? l, [] as SleepLog[])
+
+  it('目標までに起きた日を続けて数える', () => {
+    const l = logs(['2026-11-08', '06:50'], ['2026-11-09', '07:00'], [T, '06:30'])
+    expect(wakeStreak(l, T, S).current).toBe(3)
+  })
+
+  it('遅れた日で途切れる', () => {
+    const l = logs(['2026-11-08', '06:50'], ['2026-11-09', '07:01'], [T, '06:30'])
+    expect(wakeStreak(l, T, S).current).toBe(1)
+  })
+
+  it('今日がまだ未記録なら、昨日までで数える', () => {
+    expect(wakeStreak(logs(['2026-11-09', '06:50']), T, S).current).toBe(1)
+  })
+
+  it('記録の無い日は途切れる', () => {
+    const l = logs(['2026-11-07', '06:50'], ['2026-11-09', '06:50'])
+    expect(wakeStreak(l, T, S).current).toBe(1)
+  })
+
+  it('過去の最長と、直近の様子を返す', () => {
+    const l = logs(['2026-11-01', '06:00'], ['2026-11-02', '06:00'], ['2026-11-03', '09:00'], [T, '06:00'])
+    const s = wakeStreak(l, T, S)
+    expect(s.best).toBe(2)
+    expect(s.recent).toHaveLength(14)
+    expect(s.recent.at(-1)).toEqual({ date: T, state: 'hit' })
+    expect(s.recent.find((d) => d.date === '2026-11-03')?.state).toBe('miss')
+    expect(s.recent.find((d) => d.date === '2026-11-05')?.state).toBe('none')
   })
 })
